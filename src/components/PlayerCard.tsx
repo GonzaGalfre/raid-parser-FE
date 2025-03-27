@@ -30,30 +30,51 @@ const PlayerCard: React.FC<PlayerCardProps> = ({
   itemLevel,
   playerClass,
 }) => {
+  // Map each class to its color for direct CSS use
+  const getClassColor = (playerClass: ClassType): string => {
+    const classColors = {
+      'death-knight': '#C41E3A',
+      'demon-hunter': '#A330C9',
+      'druid': '#FF7C0A',
+      'hunter': '#AAD372',
+      'mage': '#3FC7EB',
+      'monk': '#00FF98',
+      'paladin': '#F48CBA',
+      'priest': '#FFFFFF',
+      'rogue': '#FFF468',
+      'shaman': '#0070DD',
+      'warlock': '#8788EE',
+      'warrior': '#C69B6D',
+      'evoker': '#33937F',
+    };
+    return classColors[playerClass];
+  };
+
+  const classColor = getClassColor(playerClass);
+
   return (
     <div 
-      className={cn(
-        "glass-morphism w-full p-4 mb-3 rounded-md transition-all",
-        "border-l-4",
-        `border-wow-${playerClass}`,
-        "relative overflow-hidden"
-      )}
+      className="glass-morphism w-full p-4 mb-3 rounded-md transition-all relative overflow-hidden"
+      style={{ borderLeft: `4px solid ${classColor}` }}
     >
       {/* Color accent */}
       <div 
-        className={cn(
-          "absolute top-0 left-0 w-full h-full opacity-10",
-          `bg-wow-${playerClass}`
-        )} 
+        style={{ 
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          backgroundColor: classColor,
+          opacity: 0.1
+        }}
       />
       
       <div className="flex flex-col relative z-10">
         <div className="flex items-center justify-between mb-2">
           <h3 
-            className={cn(
-              "text-lg font-medium tracking-tight",
-              `text-wow-${playerClass}`
-            )}
+            className="text-lg font-medium tracking-tight"
+            style={{ color: classColor }}
           >
             {name}
           </h3>
