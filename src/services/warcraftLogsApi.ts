@@ -17,10 +17,22 @@ export interface Parse {
   class: string;
 }
 
+export interface Pull {
+  id: number;
+  attempt: number;
+  startTime: number;
+  endTime: number;
+  isKill: boolean;
+  duration: string;
+  date: string;
+  parses: Parse[];
+}
+
 export interface FightParse {
   parses: Parse[];
   fightId: number;
   fightDetails: any;
+  pulls: Pull[];
 }
 
 export interface WipefestScore {
@@ -80,6 +92,12 @@ export const useWarcraftLogsApi = (reportCode: string, apiKey: string, targetZon
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = seconds % 60;
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  };
+
+  // Format date
+  const formatDate = (timestamp: number): string => {
+    const date = new Date(timestamp);
+    return `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')} ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
   };
 
   // Get percentile badge variant
@@ -226,16 +244,52 @@ export const useWarcraftLogsApi = (reportCode: string, apiKey: string, targetZon
       const allPlayersParsesArrays = await Promise.all(enhancedPlayers.map(fetchParsesForPlayer));
       const allParses = allPlayersParsesArrays.flat();
       
+      // Process unique boss encounters and organize by boss name
+      const bossFights = raidFights.reduce((acc: any, fight: any) => {
+        const bossName = fight.name;
+        if (!acc[bossName]) {
+          acc[bossName] = {
+            bossID: fight.boss,
+            zoneName: fight.zoneName,
+            fights: []
+          };
+        }
+        
+        // Format the fight data to include pulls information
+        acc[bossName].fights.push({
+          id: fight.id,
+          startTime: fight.start_time,
+          endTime: fight.end_time,
+          isKill: fight.kill === true,
+          bossPercentage: fight.bossPercentage || 0,
+          fightPercentage: fight.fightPercentage || 0,
+          attempts: fight.difficulty || 0
+        });
+        
+        return acc;
+      }, {});
+      
       // Group parses by fight
       const fightPlayerParses: Record<string, FightParse> = {};
-      (reportJson.fights || []).forEach((fight: any) => {
-        if (fight.boss && fight.boss !== 0 && fight.zoneName === targetZone) {
-          const fightId = fight.id;
-          const matchingParses = allParses.filter((parse: any) =>
-            parse.reportID === reportCode && parse.fightID === fightId
+      
+      for (const [bossName, bossData] of Object.entries(bossFights)) {
+        const bossID = (bossData as any).bossID;
+        const zoneName = (bossData as any).zoneName;
+        const fights = (bossData as any).fights;
+        
+        // Get all parses for this boss
+        const bossParses = allParses.filter((parse: any) => 
+          parse.encounterID === bossID && 
+          parse.zoneName === zoneName
+        );
+        
+        // Group parses by attempt/pull
+        const pullsData: Pull[] = fights.map((fight: any, index: number) => {
+          const pullParses = allParses.filter((parse: any) =>
+            parse.reportID === reportCode && parse.fightID === fight.id
           );
           
-          const playerParseObjects = matchingParses.map((parse: any) => ({
+          const playerParseObjects = pullParses.map((parse: any) => ({
             playerName: parse.playerName,
             percentile: Math.floor(parse.percentile || 0),
             spec: parse.spec,
@@ -243,13 +297,54 @@ export const useWarcraftLogsApi = (reportCode: string, apiKey: string, targetZon
           }));
           
           playerParseObjects.sort((a: Parse, b: Parse) => b.percentile - a.percentile);
-          fightPlayerParses[fight.name || `Fight ${fightId}`] = {
-            parses: playerParseObjects,
-            fightId: fightId,
-            fightDetails: fight
+          
+          return {
+            id: fight.id,
+            attempt: index + 1,
+            startTime: fight.startTime,
+            endTime: fight.endTime,
+            isKill: fight.isKill,
+            duration: formatTime(fight.endTime - fight.startTime),
+            date: formatDate(reportJson.start + fight.startTime),
+            parses: playerParseObjects.length > 0 ? playerParseObjects : [], // Ensure we always have an array
+            fightDetails: {
+              bossPercentage: fight.bossPercentage || 0
+            }
           };
-        }
-      });
+        });
+        
+        // Create best parses for boss overview (best parse per player across all pulls)
+        const playerBestParses: Record<string, Parse> = {};
+        
+        // Collect best parse per player across all pulls
+        pullsData.forEach(pull => {
+          pull.parses.forEach(parse => {
+            if (!playerBestParses[parse.playerName] || 
+                playerBestParses[parse.playerName].percentile < parse.percentile) {
+              playerBestParses[parse.playerName] = parse;
+            }
+          });
+        });
+        
+        // Convert to array and sort
+        const bestParses = Object.values(playerBestParses);
+        bestParses.sort((a, b) => b.percentile - a.percentile);
+        
+        // Store in fight parses
+        fightPlayerParses[bossName] = {
+          parses: bestParses,
+          fightId: (bossData as any).fights[0].id, // Use first fight ID
+          fightDetails: {
+            bossID,
+            zoneName,
+            kill: pullsData.some(pull => pull.isKill),
+            bossPercentage: pullsData.length > 0 && !pullsData.some(pull => pull.isKill) 
+              ? pullsData[pullsData.length - 1].fightDetails.bossPercentage 
+              : 0
+          },
+          pulls: pullsData
+        };
+      }
       
       setFightParses(fightPlayerParses);
       
@@ -285,6 +380,7 @@ export const useWarcraftLogsApi = (reportCode: string, apiKey: string, targetZon
     calculatePlayerAverages,
     getClassColor,
     formatTime,
-    getPercentileBadgeVariant
+    getPercentileBadgeVariant,
+    fetchReport
   };
 };
