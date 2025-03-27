@@ -50,7 +50,16 @@ const PlayerCard: React.FC<PlayerCardProps> = ({
     return classColors[playerClass];
   };
 
+  // Format class name for display (capitalize and replace hyphens with spaces)
+  const formatClassName = (className: string): string => {
+    return className
+      .split('-')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  };
+
   const classColor = getClassColor(playerClass);
+  const formattedClassName = formatClassName(playerClass);
 
   return (
     <div 
@@ -82,8 +91,20 @@ const PlayerCard: React.FC<PlayerCardProps> = ({
             {itemLevel}
           </span>
         </div>
-        <div className="text-muted-foreground text-sm">
-          {realm}
+        <div className="flex justify-between items-center">
+          <span className="text-muted-foreground text-sm">
+            {realm}
+          </span>
+          <span 
+            className="text-xs px-2 py-0.5 rounded-full"
+            style={{ 
+              backgroundColor: `${classColor}20`, 
+              color: classColor,
+              border: `1px solid ${classColor}40`
+            }}
+          >
+            {formattedClassName}
+          </span>
         </div>
       </div>
     </div>
