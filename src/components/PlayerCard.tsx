@@ -31,8 +31,23 @@ const PlayerCard: React.FC<PlayerCardProps> = ({
   playerClass,
 }) => {
   return (
-    <div className="glass-morphism w-full p-4 mb-3 rounded-md transition-all">
-      <div className="flex flex-col">
+    <div 
+      className={cn(
+        "glass-morphism w-full p-4 mb-3 rounded-md transition-all",
+        "border-l-4",
+        `border-wow-${playerClass}`,
+        "relative overflow-hidden"
+      )}
+    >
+      {/* Color accent */}
+      <div 
+        className={cn(
+          "absolute top-0 left-0 w-full h-full opacity-10",
+          `bg-wow-${playerClass}`
+        )} 
+      />
+      
+      <div className="flex flex-col relative z-10">
         <div className="flex items-center justify-between mb-2">
           <h3 
             className={cn(
