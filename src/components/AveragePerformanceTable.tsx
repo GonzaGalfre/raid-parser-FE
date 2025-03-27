@@ -1,9 +1,10 @@
-
+// src/components/AveragePerformanceTable.tsx
 import React, { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { type PlayerAverage } from '@/services/warcraftLogsApi';
 
 type ClassType = 
   | 'death-knight' 
@@ -20,110 +21,38 @@ type ClassType =
   | 'warrior'
   | 'evoker';
 
-interface PlayerAveragePerformance {
-  rank: number;
-  player: string;
-  playerClass: ClassType;
-  spec: string;
-  logParse: number;
-  wipefestParse: number;
-  avgScore: number;
+interface AveragePerformanceTableProps {
+  playerAverages: PlayerAverage[];
+  loading: boolean;
 }
 
-const PLAYER_AVERAGES: PlayerAveragePerformance[] = [
-  { 
-    rank: 1, 
-    player: "Sneakyboi", 
-    playerClass: "rogue", 
-    spec: "Subtlety Rogue", 
-    logParse: 94, 
-    wipefestParse: 91, 
-    avgScore: 92.5 
-  },
-  { 
-    rank: 2, 
-    player: "Morhion", 
-    playerClass: "mage", 
-    spec: "Frost Mage", 
-    logParse: 93, 
-    wipefestParse: 89, 
-    avgScore: 91 
-  },
-  { 
-    rank: 3, 
-    player: "DarkSlayer", 
-    playerClass: "death-knight", 
-    spec: "Unholy Death Knight", 
-    logParse: 91, 
-    wipefestParse: 90, 
-    avgScore: 90.5 
-  },
-  { 
-    rank: 4, 
-    player: "ElementMaster", 
-    playerClass: "shaman", 
-    spec: "Elemental Shaman", 
-    logParse: 89, 
-    wipefestParse: 87, 
-    avgScore: 88 
-  },
-  { 
-    rank: 5, 
-    player: "NatureFriend", 
-    playerClass: "druid", 
-    spec: "Balance Druid", 
-    logParse: 88, 
-    wipefestParse: 85, 
-    avgScore: 86.5 
-  },
-  { 
-    rank: 6, 
-    player: "LightBringer", 
-    playerClass: "paladin", 
-    spec: "Retribution Paladin", 
-    logParse: 85, 
-    wipefestParse: 88, 
-    avgScore: 86.5 
-  },
-  { 
-    rank: 7, 
-    player: "Healinator", 
-    playerClass: "priest", 
-    spec: "Holy Priest", 
-    logParse: 86, 
-    wipefestParse: 84, 
-    avgScore: 85 
-  },
-  { 
-    rank: 8, 
-    player: "DoomCaller", 
-    playerClass: "warlock", 
-    spec: "Affliction Warlock", 
-    logParse: 84, 
-    wipefestParse: 82, 
-    avgScore: 83 
-  },
-  { 
-    rank: 9, 
-    player: "ArrowStorm", 
-    playerClass: "hunter", 
-    spec: "Marksmanship Hunter", 
-    logParse: 82, 
-    wipefestParse: 83, 
-    avgScore: 82.5 
-  },
-  { 
-    rank: 10, 
-    player: "BattleMaster", 
-    playerClass: "warrior", 
-    spec: "Fury Warrior", 
-    logParse: 80, 
-    wipefestParse: 81, 
-    avgScore: 80.5 
-  }
-];
+const normalizeClassName = (wowClass: string): ClassType => {
+  // Map API class names to CSS class names
+  const classMap: Record<string, ClassType> = {
+    'DeathKnight': 'death-knight',
+    'Death Knight': 'death-knight',
+    'DemonHunter': 'demon-hunter',
+    'Demon Hunter': 'demon-hunter',
+    'Druid': 'druid', 
+    'Hunter': 'hunter',
+    'Mage': 'mage',
+    'Monk': 'monk',
+    'Paladin': 'paladin',
+    'Priest': 'priest',
+    'Rogue': 'rogue',
+    'Shaman': 'shaman',
+    'Warlock': 'warlock',
+    'Warrior': 'warrior',
+    'Evoker': 'evoker'
+  };
+  
+  return classMap[wowClass] || 'warrior';
+};
 
-const AveragePerformanceTable: React.FC = () => {
+const AveragePerformanceTable: React.FC<AveragePerformanceTableProps> = ({ 
+  playerAverages,
+  loading 
+}) => {
   const [isRankMode, setIsRankMode] = useState(true);
   const [threshold, setThreshold] = useState('3');
   
@@ -131,15 +60,39 @@ const AveragePerformanceTable: React.FC = () => {
   const getHighlightedPlayers = () => {
     if (isRankMode) {
       const rankThreshold = parseInt(threshold) || 0;
-      return PLAYER_AVERAGES.filter(player => player.rank <= rankThreshold);
+      return playerAverages.filter((player, index) => index < rankThreshold);
     } else {
       const parseThreshold = parseInt(threshold) || 0;
-      return PLAYER_AVERAGES.filter(player => player.avgScore >= parseThreshold);
+      return playerAverages.filter(player => player.totalAverage >= parseThreshold);
     }
   };
   
   const highlightedPlayers = getHighlightedPlayers();
-  const highlightedPlayerIds = new Set(highlightedPlayers.map(p => p.player));
+  const highlightedPlayerIds = new Set(highlightedPlayers.map(p => p.playerName));
+
+  if (loading) {
+    return (
+      <div className="w-full animate-fade-in">
+        <div className="glass-morphism p-4 rounded-lg">
+          <div className="flex justify-center items-center h-40">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (playerAverages.length === 0) {
+    return (
+      <div className="w-full animate-fade-in">
+        <div className="glass-morphism p-4 rounded-lg">
+          <div className="flex justify-center items-center h-40">
+            <p className="text-muted-foreground">No player data available. Please check your configuration.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full animate-fade-in">
@@ -167,7 +120,7 @@ const AveragePerformanceTable: React.FC = () => {
                 onChange={(e) => setThreshold(e.target.value)}
                 className="w-20"
                 min={isRankMode ? "1" : "0"}
-                max={isRankMode ? "10" : "100"}
+                max={isRankMode ? String(playerAverages.length) : "100"}
               />
               <Label htmlFor="threshold" className="text-sm">
                 {isRankMode ? 'Rank' : '%'}
@@ -189,59 +142,59 @@ const AveragePerformanceTable: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {PLAYER_AVERAGES.map((player) => (
+              {playerAverages.map((player, index) => (
                 <tr 
-                  key={player.rank} 
+                  key={player.playerName} 
                   className={cn(
                     "border-b border-white/5 last:border-0",
-                    highlightedPlayerIds.has(player.player) && "bg-primary/10"
+                    highlightedPlayerIds.has(player.playerName) && "bg-primary/10"
                   )}
                 >
-                  <td className="py-3 text-sm">{player.rank}</td>
-                  <td className={`py-3 text-sm text-wow-${player.playerClass}`}>
-                    {player.player}
+                  <td className="py-3 text-sm">{index + 1}</td>
+                  <td className={`py-3 text-sm text-wow-${normalizeClassName(player.class)}`}>
+                    {player.playerName}
                   </td>
-                  <td className="py-3 text-sm text-muted-foreground">{player.spec}</td>
+                  <td className="py-3 text-sm text-muted-foreground">{player.spec || 'Unknown'}</td>
                   <td className="py-3 text-sm font-medium text-right">
                     <span 
                       className={cn(
                         "px-2 py-1 rounded-md",
-                        player.logParse >= 95 ? "bg-green-500/20 text-green-400" :
-                        player.logParse >= 75 ? "bg-blue-500/20 text-blue-400" :
-                        player.logParse >= 50 ? "bg-purple-500/20 text-purple-400" :
-                        player.logParse >= 25 ? "bg-yellow-500/20 text-yellow-400" :
+                        player.averagePercentile >= 95 ? "bg-green-500/20 text-green-400" :
+                        player.averagePercentile >= 75 ? "bg-blue-500/20 text-blue-400" :
+                        player.averagePercentile >= 50 ? "bg-purple-500/20 text-purple-400" :
+                        player.averagePercentile >= 25 ? "bg-yellow-500/20 text-yellow-400" :
                         "bg-gray-500/20 text-gray-400"
                       )}
                     >
-                      {player.logParse}%
+                      {player.averagePercentile}%
                     </span>
                   </td>
                   <td className="py-3 text-sm font-medium text-right">
                     <span 
                       className={cn(
                         "px-2 py-1 rounded-md",
-                        player.wipefestParse >= 95 ? "bg-green-500/20 text-green-400" :
-                        player.wipefestParse >= 75 ? "bg-blue-500/20 text-blue-400" :
-                        player.wipefestParse >= 50 ? "bg-purple-500/20 text-purple-400" :
-                        player.wipefestParse >= 25 ? "bg-yellow-500/20 text-yellow-400" :
+                        player.wipefestScore >= 95 ? "bg-green-500/20 text-green-400" :
+                        player.wipefestScore >= 75 ? "bg-blue-500/20 text-blue-400" :
+                        player.wipefestScore >= 50 ? "bg-purple-500/20 text-purple-400" :
+                        player.wipefestScore >= 25 ? "bg-yellow-500/20 text-yellow-400" :
                         "bg-gray-500/20 text-gray-400"
                       )}
                     >
-                      {player.wipefestParse}%
+                      {player.wipefestScore}%
                     </span>
                   </td>
                   <td className="py-3 text-sm font-medium text-right">
                     <span 
                       className={cn(
                         "px-2 py-1 rounded-md font-semibold",
-                        player.avgScore >= 95 ? "bg-green-500/20 text-green-400" :
-                        player.avgScore >= 75 ? "bg-blue-500/20 text-blue-400" :
-                        player.avgScore >= 50 ? "bg-purple-500/20 text-purple-400" :
-                        player.avgScore >= 25 ? "bg-yellow-500/20 text-yellow-400" :
+                        player.totalAverage >= 95 ? "bg-green-500/20 text-green-400" :
+                        player.totalAverage >= 75 ? "bg-blue-500/20 text-blue-400" :
+                        player.totalAverage >= 50 ? "bg-purple-500/20 text-purple-400" :
+                        player.totalAverage >= 25 ? "bg-yellow-500/20 text-yellow-400" :
                         "bg-gray-500/20 text-gray-400"
                       )}
                     >
-                      {player.avgScore}%
+                      {player.totalAverage}%
                     </span>
                   </td>
                 </tr>

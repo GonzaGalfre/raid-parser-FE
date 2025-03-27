@@ -1,9 +1,10 @@
-
+// src/components/BossfightTabs.tsx
 import React, { useState } from 'react';
 import { cn } from '@/lib/utils';
+import { type FightParse } from '@/services/warcraftLogsApi';
 
-type ClassType = 
-  | 'death-knight' 
+type ClassType =
+  | 'death-knight'
   | 'demon-hunter'
   | 'druid'
   | 'hunter'
@@ -17,163 +18,108 @@ type ClassType =
   | 'warrior'
   | 'evoker';
 
-interface PlayerPerformance {
-  rank: number;
-  player: string;
-  playerClass: ClassType;
-  spec: string;
-  parse: number;
+interface BossfightTabsProps {
+  fightParses: Record<string, FightParse>;
+  selectedFight: string;
+  setSelectedFight: (fightName: string) => void;
+  loading: boolean;
 }
 
-interface Pull {
-  id: number;
-  isKill: boolean;
-  performances: PlayerPerformance[];
-}
+const normalizeClassName = (wowClass: string): ClassType => {
+  // Map API class names to CSS class names
+  const classMap: Record<string, ClassType> = {
+    'DeathKnight': 'death-knight',
+    'Death Knight': 'death-knight',
+    'DemonHunter': 'demon-hunter',
+    'Demon Hunter': 'demon-hunter',
+    'Druid': 'druid', 
+    'Hunter': 'hunter',
+    'Mage': 'mage',
+    'Monk': 'monk',
+    'Paladin': 'paladin',
+    'Priest': 'priest',
+    'Rogue': 'rogue',
+    'Shaman': 'shaman',
+    'Warlock': 'warlock',
+    'Warrior': 'warrior',
+    'Evoker': 'evoker'
+  };
+  
+  return classMap[wowClass] || 'warrior';
+};
 
-interface BossData {
-  name: string;
-  pulls: Pull[];
-}
+const BossfightTabs: React.FC<BossfightTabsProps> = ({
+  fightParses,
+  selectedFight,
+  setSelectedFight,
+  loading
+}) => {
+  const fightNames = Object.keys(fightParses);
 
-const BOSSES_DATA: BossData[] = [
-  {
-    name: "Boss Alpha",
-    pulls: [
-      {
-        id: 1,
-        isKill: true,
-        performances: [
-          { rank: 1, player: "Morhion", playerClass: "mage", spec: "Frost Mage", parse: 97 },
-          { rank: 2, player: "Sneakyboi", playerClass: "rogue", spec: "Subtlety Rogue", parse: 95 },
-          { rank: 3, player: "Healinator", playerClass: "priest", spec: "Holy Priest", parse: 92 },
-          { rank: 4, player: "DarkSlayer", playerClass: "death-knight", spec: "Unholy Death Knight", parse: 89 },
-          { rank: 5, player: "ElementMaster", playerClass: "shaman", spec: "Elemental Shaman", parse: 85 },
-        ]
-      },
-      {
-        id: 2,
-        isKill: false,
-        performances: [
-          { rank: 1, player: "Morhion", playerClass: "mage", spec: "Frost Mage", parse: 92 },
-          { rank: 2, player: "DarkSlayer", playerClass: "death-knight", spec: "Unholy Death Knight", parse: 91 },
-          { rank: 3, player: "Sneakyboi", playerClass: "rogue", spec: "Subtlety Rogue", parse: 89 },
-          { rank: 4, player: "ElementMaster", playerClass: "shaman", spec: "Elemental Shaman", parse: 83 },
-          { rank: 5, player: "Healinator", playerClass: "priest", spec: "Holy Priest", parse: 81 },
-        ]
-      }
-    ]
-  },
-  {
-    name: "Boss Beta",
-    pulls: [
-      {
-        id: 1,
-        isKill: false,
-        performances: [
-          { rank: 1, player: "Sneakyboi", playerClass: "rogue", spec: "Subtlety Rogue", parse: 94 },
-          { rank: 2, player: "DarkSlayer", playerClass: "death-knight", spec: "Unholy Death Knight", parse: 93 },
-          { rank: 3, player: "Morhion", playerClass: "mage", spec: "Frost Mage", parse: 90 },
-          { rank: 4, player: "ElementMaster", playerClass: "shaman", spec: "Elemental Shaman", parse: 86 },
-          { rank: 5, player: "Healinator", playerClass: "priest", spec: "Holy Priest", parse: 83 },
-        ]
-      },
-      {
-        id: 2,
-        isKill: true,
-        performances: [
-          { rank: 1, player: "DarkSlayer", playerClass: "death-knight", spec: "Unholy Death Knight", parse: 98 },
-          { rank: 2, player: "Sneakyboi", playerClass: "rogue", spec: "Subtlety Rogue", parse: 96 },
-          { rank: 3, player: "Morhion", playerClass: "mage", spec: "Frost Mage", parse: 95 },
-          { rank: 4, player: "ElementMaster", playerClass: "shaman", spec: "Elemental Shaman", parse: 88 },
-          { rank: 5, player: "Healinator", playerClass: "priest", spec: "Holy Priest", parse: 87 },
-        ]
-      }
-    ]
-  },
-  {
-    name: "Boss Gamma",
-    pulls: [
-      {
-        id: 1,
-        isKill: false,
-        performances: [
-          { rank: 1, player: "Morhion", playerClass: "mage", spec: "Frost Mage", parse: 89 },
-          { rank: 2, player: "Sneakyboi", playerClass: "rogue", spec: "Subtlety Rogue", parse: 87 },
-          { rank: 3, player: "ElementMaster", playerClass: "shaman", spec: "Elemental Shaman", parse: 86 },
-          { rank: 4, player: "DarkSlayer", playerClass: "death-knight", spec: "Unholy Death Knight", parse: 83 },
-          { rank: 5, player: "Healinator", playerClass: "priest", spec: "Holy Priest", parse: 80 },
-        ]
-      },
-      {
-        id: 2,
-        isKill: false,
-        performances: [
-          { rank: 1, player: "Sneakyboi", playerClass: "rogue", spec: "Subtlety Rogue", parse: 92 },
-          { rank: 2, player: "Morhion", playerClass: "mage", spec: "Frost Mage", parse: 90 },
-          { rank: 3, player: "DarkSlayer", playerClass: "death-knight", spec: "Unholy Death Knight", parse: 88 },
-          { rank: 4, player: "ElementMaster", playerClass: "shaman", spec: "Elemental Shaman", parse: 85 },
-          { rank: 5, player: "Healinator", playerClass: "priest", spec: "Holy Priest", parse: 82 },
-        ]
-      },
-      {
-        id: 3,
-        isKill: true,
-        performances: [
-          { rank: 1, player: "ElementMaster", playerClass: "shaman", spec: "Elemental Shaman", parse: 99 },
-          { rank: 2, player: "Sneakyboi", playerClass: "rogue", spec: "Subtlety Rogue", parse: 97 },
-          { rank: 3, player: "Morhion", playerClass: "mage", spec: "Frost Mage", parse: 96 },
-          { rank: 4, player: "DarkSlayer", playerClass: "death-knight", spec: "Unholy Death Knight", parse: 93 },
-          { rank: 5, player: "Healinator", playerClass: "priest", spec: "Holy Priest", parse: 91 },
-        ]
-      }
-    ]
+  if (loading) {
+    return (
+      <div className="w-full animate-fade-in">
+        <div className="glass-morphism p-4 rounded-lg">
+          <div className="flex justify-center items-center h-40">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+          </div>
+        </div>
+      </div>
+    );
   }
-];
 
-const BossfightTabs: React.FC = () => {
-  const [activeTab, setActiveTab] = useState(0);
+  if (fightNames.length === 0) {
+    return (
+      <div className="w-full animate-fade-in">
+        <div className="glass-morphism p-4 rounded-lg">
+          <div className="flex justify-center items-center h-40">
+            <p className="text-muted-foreground">No fight data available. Please check your configuration.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full animate-fade-in">
       <div className="glass-morphism rounded-t-lg">
-        <div className="flex border-b border-white/10">
-          {BOSSES_DATA.map((boss, index) => (
+        <div className="flex border-b border-white/10 overflow-x-auto">
+          {fightNames.map((bossName) => (
             <button
-              key={index}
+              key={bossName}
               className={cn(
-                "px-4 py-3 text-sm font-medium transition-colors focus:outline-none",
-                activeTab === index 
-                  ? "text-primary border-b-2 border-primary" 
+                "px-4 py-3 text-sm font-medium transition-colors focus:outline-none whitespace-nowrap",
+                selectedFight === bossName
+                  ? "text-primary border-b-2 border-primary"
                   : "text-muted-foreground hover:text-primary"
               )}
-              onClick={() => setActiveTab(index)}
+              onClick={() => setSelectedFight(bossName)}
             >
-              {boss.name}
+              {bossName}
             </button>
           ))}
         </div>
       </div>
-      
+
       <div className="mt-6 space-y-8 animate-fade-in">
-        {BOSSES_DATA[activeTab].pulls.map((pull) => (
-          <div key={pull.id} className="glass-morphism p-4 rounded-lg">
+        {selectedFight && (
+          <div className="glass-morphism p-4 rounded-lg">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-medium">
-                Pull #{pull.id}
+                {selectedFight}
               </h3>
-              <span 
+              <span
                 className={cn(
                   "px-3 py-1 text-xs font-semibold rounded-full",
-                  pull.isKill 
-                    ? "bg-kill/20 text-kill" 
+                  fightParses[selectedFight]?.fightDetails?.kill
+                    ? "bg-kill/20 text-kill"
                     : "bg-wipe/20 text-wipe"
                 )}
               >
-                {pull.isKill ? "Kill" : "Wipe"}
+                {fightParses[selectedFight]?.fightDetails?.kill ? "Kill" : "Wipe"}
               </span>
             </div>
-            
+
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
@@ -185,23 +131,25 @@ const BossfightTabs: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {pull.performances.map((perf) => (
-                    <tr key={`${pull.id}-${perf.rank}`} className="border-b border-white/5 last:border-0">
-                      <td className="py-3 text-sm">{perf.rank}</td>
-                      <td className={`py-3 text-sm text-wow-${perf.playerClass}`}>{perf.player}</td>
-                      <td className="py-3 text-sm text-muted-foreground">{perf.spec}</td>
+                  {fightParses[selectedFight]?.parses.map((parse, index) => (
+                    <tr key={`${parse.playerName}-${index}`} className="border-b border-white/5 last:border-0">
+                      <td className="py-3 text-sm">{index + 1}</td>
+                      <td className={`py-3 text-sm text-wow-${normalizeClassName(parse.class)}`}>
+                        {parse.playerName}
+                      </td>
+                      <td className="py-3 text-sm text-muted-foreground">{parse.spec}</td>
                       <td className="py-3 text-sm font-medium text-right">
-                        <span 
+                        <span
                           className={cn(
                             "px-2 py-1 rounded-md",
-                            perf.parse >= 95 ? "bg-green-500/20 text-green-400" :
-                            perf.parse >= 75 ? "bg-blue-500/20 text-blue-400" :
-                            perf.parse >= 50 ? "bg-purple-500/20 text-purple-400" :
-                            perf.parse >= 25 ? "bg-yellow-500/20 text-yellow-400" :
+                            parse.percentile >= 95 ? "bg-green-500/20 text-green-400" :
+                            parse.percentile >= 75 ? "bg-blue-500/20 text-blue-400" :
+                            parse.percentile >= 50 ? "bg-purple-500/20 text-purple-400" :
+                            parse.percentile >= 25 ? "bg-yellow-500/20 text-yellow-400" :
                             "bg-gray-500/20 text-gray-400"
                           )}
                         >
-                          {perf.parse}%
+                          {parse.percentile}%
                         </span>
                       </td>
                     </tr>
@@ -210,7 +158,7 @@ const BossfightTabs: React.FC = () => {
               </table>
             </div>
           </div>
-        ))}
+        )}
       </div>
     </div>
   );

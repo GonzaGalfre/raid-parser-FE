@@ -1,6 +1,7 @@
-
+// src/components/PlayerCard.tsx
 import React from 'react';
 import { cn } from '@/lib/utils';
+import { type Player } from '@/services/warcraftLogsApi';
 
 type ClassType = 
   | 'death-knight' 
@@ -18,48 +19,70 @@ type ClassType =
   | 'evoker';
 
 interface PlayerCardProps {
-  name: string;
-  realm: string;
-  itemLevel: string;
-  playerClass: ClassType;
+  player: Player;
 }
 
+const normalizeClassName = (wowClass: string): ClassType => {
+  // Map API class names to CSS class names
+  const classMap: Record<string, ClassType> = {
+    'DeathKnight': 'death-knight',
+    'Death Knight': 'death-knight',
+    'DemonHunter': 'demon-hunter',
+    'Demon Hunter': 'demon-hunter',
+    'Druid': 'druid', 
+    'Hunter': 'hunter',
+    'Mage': 'mage',
+    'Monk': 'monk',
+    'Paladin': 'paladin',
+    'Priest': 'priest',
+    'Rogue': 'rogue',
+    'Shaman': 'shaman',
+    'Warlock': 'warlock',
+    'Warrior': 'warrior',
+    'Evoker': 'evoker'
+  };
+  
+  return classMap[wowClass] || 'warrior';
+};
+
 const PlayerCard: React.FC<PlayerCardProps> = ({
-  name,
-  realm,
-  itemLevel,
-  playerClass,
+  player
 }) => {
   // Map each class to its color for direct CSS use
-  const getClassColor = (playerClass: ClassType): string => {
+  const getClassColor = (playerClass: string): string => {
     const classColors = {
-      'death-knight': '#C41E3A',
-      'demon-hunter': '#A330C9',
-      'druid': '#FF7C0A',
-      'hunter': '#AAD372',
-      'mage': '#3FC7EB',
-      'monk': '#00FF98',
-      'paladin': '#F48CBA',
-      'priest': '#FFFFFF',
-      'rogue': '#FFF468',
-      'shaman': '#0070DD',
-      'warlock': '#8788EE',
-      'warrior': '#C69B6D',
-      'evoker': '#33937F',
+      'DeathKnight': '#C41E3A',
+      'DemonHunter': '#A330C9',
+      'Death Knight': '#C41E3A',
+      'Demon Hunter': '#A330C9',
+      'Druid': '#FF7C0A',
+      'Hunter': '#AAD372',
+      'Mage': '#3FC7EB',
+      'Monk': '#00FF98',
+      'Paladin': '#F48CBA',
+      'Priest': '#FFFFFF',
+      'Rogue': '#FFF468',
+      'Shaman': '#0070DD',
+      'Warlock': '#8788EE',
+      'Warrior': '#C69B6D',
+      'Evoker': '#33937F',
     };
-    return classColors[playerClass];
+    return classColors[playerClass] || '#888888';
   };
 
   // Format class name for display (capitalize and replace hyphens with spaces)
   const formatClassName = (className: string): string => {
-    return className
+    if (!className) return 'Unknown';
+    
+    const normalizedClass = normalizeClassName(className);
+    return normalizedClass
       .split('-')
       .map(word => word.charAt(0).toUpperCase() + word.slice(1))
       .join(' ');
   };
 
-  const classColor = getClassColor(playerClass);
-  const formattedClassName = formatClassName(playerClass);
+  const classColor = getClassColor(player.class);
+  const formattedClassName = formatClassName(player.class);
 
   return (
     <div 
@@ -85,15 +108,12 @@ const PlayerCard: React.FC<PlayerCardProps> = ({
             className="text-lg font-medium tracking-tight"
             style={{ color: classColor }}
           >
-            {name}
+            {player.name}
           </h3>
-          <span className="text-sm font-semibold bg-secondary px-2 py-0.5 rounded-md">
-            {itemLevel}
-          </span>
         </div>
         <div className="flex justify-between items-center">
           <span className="text-muted-foreground text-sm">
-            {realm}
+            {player.server}
           </span>
           <span 
             className="text-xs px-2 py-0.5 rounded-full"
