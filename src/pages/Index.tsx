@@ -11,27 +11,25 @@ import { RefreshCw } from 'lucide-react';
 const Index = () => {
   // Configuration state
   const [reportCode, setReportCode] = useState('');
-  const [apiKey, setApiKey] = useState('');
-  const [targetZone, setTargetZone] = useState('Amirdrassil');
+  // API key is now hardcoded in the ConfigPanel component
+  const [apiKey, setApiKey] = useState('122f2d0f15365c7c36b5b04fe99800e7'); // This should match the hardcoded API key in ConfigPanel
+  const [targetZone, setTargetZone] = useState('Liberation of Undermine');
   const [forceRefresh, setForceRefresh] = useState(0);
 
   // Try to load config from local storage
   useEffect(() => {
     const savedReportCode = localStorage.getItem('reportCode');
-    const savedApiKey = localStorage.getItem('apiKey');
-    const savedTargetZone = localStorage.getItem('targetZone');
     
     if (savedReportCode) setReportCode(savedReportCode);
-    if (savedApiKey) setApiKey(savedApiKey);
-    if (savedTargetZone) setTargetZone(savedTargetZone);
+    // Always use the same zone for now
+    setTargetZone('Liberation of Undermine');
   }, []);
 
   // Save config to local storage when changed
   useEffect(() => {
     if (reportCode) localStorage.setItem('reportCode', reportCode);
-    if (apiKey) localStorage.setItem('apiKey', apiKey);
-    if (targetZone) localStorage.setItem('targetZone', targetZone);
-  }, [reportCode, apiKey, targetZone]);
+    // We don't save API key or zone in local storage anymore
+  }, [reportCode]);
 
   // WarcraftLogs API hook
   const {
@@ -56,7 +54,7 @@ const Index = () => {
   const playerAverages = calculatePlayerAverages();
 
   // Determine configuration status
-  const isConfigured = reportCode && apiKey && targetZone;
+  const isConfigured = reportCode && apiKey;
   const needsConfiguration = !isConfigured && !loading;
 
   return (
@@ -76,7 +74,6 @@ const Index = () => {
           <ConfigPanel
             reportCode={reportCode}
             setReportCode={setReportCode}
-            apiKey={apiKey}
             setApiKey={setApiKey}
             targetZone={targetZone}
             setTargetZone={setTargetZone}
@@ -94,7 +91,7 @@ const Index = () => {
         {needsConfiguration && (
           <div className="glass-morphism p-8 rounded-lg text-center mb-6">
             <h2 className="text-2xl font-bold mb-4">Welcome to Raid Performance</h2>
-            <p className="mb-6">Click the settings icon in the top right to configure your Warcraft Logs API credentials and report.</p>
+            <p className="mb-6">Click the settings icon in the top right to configure your Warcraft Logs report code.</p>
           </div>
         )}
         

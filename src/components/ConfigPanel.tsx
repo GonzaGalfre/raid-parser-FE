@@ -14,11 +14,11 @@ import {
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Settings } from 'lucide-react';
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 interface ConfigPanelProps {
   reportCode: string;
   setReportCode: (code: string) => void;
-  apiKey: string;
   setApiKey: (key: string) => void;
   targetZone: string;
   setTargetZone: (zone: string) => void;
@@ -26,10 +26,11 @@ interface ConfigPanelProps {
   fetchReport: () => void;
 }
 
+const HARDCODED_API_KEY = "122f2d0f15365c7c36b5b04fe99800e7";
+
 const ConfigPanel: React.FC<ConfigPanelProps> = ({
   reportCode,
   setReportCode,
-  apiKey,
   setApiKey,
   targetZone,
   setTargetZone,
@@ -39,13 +40,11 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({
   const [open, setOpen] = useState(false);
   const [wipefestCsv, setWipefestCsv] = useState('');
   const [localReportCode, setLocalReportCode] = useState(reportCode);
-  const [localApiKey, setLocalApiKey] = useState(apiKey);
-  const [localTargetZone, setLocalTargetZone] = useState(targetZone);
   
   const handleSave = () => {
     setReportCode(localReportCode);
-    setApiKey(localApiKey);
-    setTargetZone(localTargetZone);
+    setApiKey(HARDCODED_API_KEY); // Use the hardcoded API key
+    setTargetZone("Liberation of Undermine");
     
     if (wipefestCsv.trim()) {
       importWipefestScores(wipefestCsv);
@@ -64,24 +63,12 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>API Configuration</DialogTitle>
+          <DialogTitle>Configuration</DialogTitle>
           <DialogDescription>
-            Configure your Warcraft Logs API settings.
+            Configure your Warcraft Logs report settings.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="apiKey" className="text-right">
-              API Key
-            </Label>
-            <Input
-              id="apiKey"
-              value={localApiKey}
-              onChange={(e) => setLocalApiKey(e.target.value)}
-              className="col-span-3"
-              placeholder="Your Warcraft Logs API key"
-            />
-          </div>
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="reportCode" className="text-right">
               Report Code
@@ -94,18 +81,19 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({
               placeholder="Log report code (e.g. a2bC3d4E)"
             />
           </div>
+          
           <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="targetZone" className="text-right">
-              Zone Name
-            </Label>
-            <Input
-              id="targetZone"
-              value={localTargetZone}
-              onChange={(e) => setLocalTargetZone(e.target.value)}
-              className="col-span-3"
-              placeholder="Target raid zone (e.g. Amirdrassil)"
-            />
+            <Label className="text-right">Zone</Label>
+            <div className="col-span-3">
+              <RadioGroup defaultValue="Liberation of Undermine" onValueChange={setTargetZone}>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="Liberation of Undermine" id="zone-undermine" defaultChecked />
+                  <Label htmlFor="zone-undermine">Liberation of Undermine</Label>
+                </div>
+              </RadioGroup>
+            </div>
           </div>
+          
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="wipefestCsv" className="text-right">
               Wipefest CSV
