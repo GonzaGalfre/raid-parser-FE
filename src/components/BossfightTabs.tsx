@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { type FightParse, Pull } from '@/services/warcraftLogsApi';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ClassColoredText } from './DirectColorStyles';
 
 type ClassType =
   | 'death-knight'
@@ -138,7 +139,7 @@ const BossfightTabs: React.FC<BossfightTabsProps> = ({
               >
                 {fightParses[selectedFight]?.fightDetails?.kill 
                   ? "Kill" 
-                  : `${(fightParses[selectedFight]?.fightDetails?.bossPercentage / 100).toFixed(1)}% left`}
+                  : `${Math.round(fightParses[selectedFight]?.fightDetails?.bossPercentage || 0)}% left`}
               </span>
             </div>
             
@@ -163,11 +164,20 @@ const BossfightTabs: React.FC<BossfightTabsProps> = ({
                       {fightParses[selectedFight]?.parses.map((parse, index) => (
                         <tr key={`${parse.playerName}-${index}`} className="border-b border-white/5 last:border-0">
                           <td className="py-3 text-sm">{index + 1}</td>
-                          <td className={`py-3 text-sm text-wow-${normalizeClassName(parse.class)}`}>
-                            {parse.playerName}
+                          <td className="py-3 text-sm">
+                            <ClassColoredText wowClass={parse.class}>
+                              {parse.playerName}
+                            </ClassColoredText>
                           </td>
-                          <td className="py-3 text-sm text-muted-foreground">{parse.spec}</td>
+                          <td className="py-3 text-sm text-muted-foreground">
+                            {parse.spec} {parse.class}
+                          </td>
                           <td className="py-3 text-sm font-medium text-right">
+                            {parse.isHealingParse && (
+                              <span className="text-xs inline-block px-1.5 py-0.5 bg-green-500/10 text-green-400 rounded mr-2">
+                                healing
+                              </span>
+                            )}
                             <span
                               className={cn(
                                 "px-2 py-1 rounded-md",
@@ -194,8 +204,8 @@ const BossfightTabs: React.FC<BossfightTabsProps> = ({
                     {/* Pulls List */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       {bossPulls.map(pull => {
-                        // Calculate boss progress for wipes
-                        const progress = pull.isKill ? 100 : Math.round(100 - ((pull.fightDetails?.bossPercentage || 0) / 100));
+                        // Use boss percentage directly - it already represents remaining health (0-100%)
+                        const remainingHealth = pull.isKill ? 0 : Math.round(pull.fightDetails?.bossPercentage || 0);
                         
                         return (
                           <div 
@@ -217,7 +227,7 @@ const BossfightTabs: React.FC<BossfightTabsProps> = ({
                                   pull.isKill ? "bg-kill/20 text-kill" : "bg-wipe/20 text-wipe"
                                 )}
                               >
-                                {pull.isKill ? "Kill" : `${(pull.fightDetails?.bossPercentage / 100).toFixed(1)}% left`}
+                                {pull.isKill ? "Kill" : `${remainingHealth}% left`}
                               </span>
                             </div>
                             <div className="flex justify-between text-sm text-muted-foreground">

@@ -11,16 +11,17 @@ import { RefreshCw } from 'lucide-react';
 const Index = () => {
   // Configuration state
   const [reportCode, setReportCode] = useState('');
-  // API key is now hardcoded in the ConfigPanel component
-  const [apiKey, setApiKey] = useState('122f2d0f15365c7c36b5b04fe99800e7'); // This should match the hardcoded API key in ConfigPanel
+  const [apiKey, setApiKey] = useState('');
   const [targetZone, setTargetZone] = useState('Liberation of Undermine');
   const [forceRefresh, setForceRefresh] = useState(0);
 
   // Try to load config from local storage
   useEffect(() => {
     const savedReportCode = localStorage.getItem('reportCode');
+    const savedApiToken = localStorage.getItem('wclApiToken');
     
     if (savedReportCode) setReportCode(savedReportCode);
+    if (savedApiToken) setApiKey(savedApiToken);
     // Always use the same zone for now
     setTargetZone('Liberation of Undermine');
   }, []);
@@ -28,7 +29,7 @@ const Index = () => {
   // Save config to local storage when changed
   useEffect(() => {
     if (reportCode) localStorage.setItem('reportCode', reportCode);
-    // We don't save API key or zone in local storage anymore
+    // API token is saved in the ConfigPanel component
   }, [reportCode]);
 
   // WarcraftLogs API hook
@@ -91,7 +92,18 @@ const Index = () => {
         {needsConfiguration && (
           <div className="glass-morphism p-8 rounded-lg text-center mb-6">
             <h2 className="text-2xl font-bold mb-4">Welcome to Raid Performance</h2>
-            <p className="mb-6">Click the settings icon in the top right to configure your Warcraft Logs report code.</p>
+            <p className="mb-6">Click the settings icon in the top right to configure your Warcraft Logs API v2 credentials and report code.</p>
+            <p className="text-sm text-muted-foreground">
+              To use the new API v2, you'll need to create API client credentials at{" "}
+              <a 
+                href="https://www.warcraftlogs.com/api/clients/" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-blue-500 hover:underline"
+              >
+                https://www.warcraftlogs.com/api/clients/
+              </a>
+            </p>
           </div>
         )}
         

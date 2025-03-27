@@ -15,6 +15,7 @@ export interface Parse {
   percentile: number;
   spec: string;
   class: string;
+  isHealingParse?: boolean;
 }
 
 export interface Pull {
@@ -26,6 +27,9 @@ export interface Pull {
   duration: string;
   date: string;
   parses: Parse[];
+  fightDetails?: {
+    bossPercentage: number;
+  };
 }
 
 export interface FightParse {
@@ -183,74 +187,209 @@ export const useWarcraftLogsApi = (reportCode: string, apiKey: string, targetZon
     return playerAverages.sort((a, b) => b.totalAverage - a.totalAverage);
   };
 
-  // Fetch report data
+  // Fetch report data using v2 GraphQL API
   const fetchReport = async () => {
     setLoading(true);
     setError(null);
     
     try {
-      // Fetch report data
-      const reportUrl = `https://www.warcraftlogs.com/v1/report/fights/${reportCode}?api_key=${apiKey}`;
-      const reportResponse = await fetch(reportUrl);
-      
-      if (!reportResponse.ok) {
-        throw new Error(`HTTP error while fetching report: ${reportResponse.status}`);
-      }
-      
-      const reportJson = await reportResponse.json();
-      setReportTitle(reportJson.title || 'Warcraft Logs Report');
-      
-      // Filter fights to only include those from the target zone
-      const raidFights = reportJson.fights.filter((fight: any) => 
-        fight.zoneName === targetZone && fight.boss !== 0
-      );
-      
-      // Get players from exported characters with additional class information
-      const exportedPlayers = reportJson.exportedCharacters || [];
-      
-      if (exportedPlayers.length === 0) {
-        throw new Error("No players found in exportedCharacters.");
-      }
-      
-      // Enhance player data with class information from friendlies if available
-      const enhancedPlayers = exportedPlayers.map((player: any) => {
-        const friendly = (reportJson.friendlies || []).find((f: any) => 
-          f.name === player.name && f.server === player.server
-        );
-        
-        return {
-          ...player,
-          class: friendly?.type || null,
-          spec: friendly?.icon?.split('-')[1] || null
-        };
+      // Prepare GraphQL query
+      const reportQuery = `
+      query {
+        reportData {
+          report(code: "${reportCode}") {
+            title
+            startTime
+            endTime
+            zone {
+              id
+              name
+            }
+            fights {
+              id
+              name
+              startTime
+              endTime
+              kill
+              bossPercentage
+              fightPercentage
+              difficulty
+              averageItemLevel
+              gameZone {
+                id
+                name
+              }
+            }
+            dpsRankings: rankings(playerMetric: dps)
+            hpsRankings: rankings(playerMetric: hps)
+            masterData {
+              actors {
+                id
+                name
+                server
+                subType
+                type
+              }
+            }
+          }
+        }
+      }`;
+
+      // Make the GraphQL request
+      const graphqlResponse = await fetch('https://www.warcraftlogs.com/api/v2/client', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}` // Note: API key format has changed for v2
+        },
+        body: JSON.stringify({ query: reportQuery })
       });
       
-      setPlayers(enhancedPlayers);
+      if (!graphqlResponse.ok) {
+        throw new Error(`HTTP error while fetching report: ${graphqlResponse.status}`);
+      }
+
+      const responseJson = await graphqlResponse.json();
       
-      // Fetch parses for all players
-      const fetchParsesForPlayer = async (player: Player) => {
-        const { name, server, region } = player;
-        const url = `https://www.warcraftlogs.com/v1/parses/character/${name}/${server}/${region}?api_key=${apiKey}`;
-        const res = await fetch(url);
-        
-        if (!res.ok) {
-          throw new Error(`HTTP error for ${name}: ${res.status}`);
+      // Check for GraphQL errors
+      if (responseJson.errors) {
+        throw new Error(`GraphQL error: ${responseJson.errors[0].message}`);
+      }
+
+      const reportData = responseJson.data.reportData.report;
+      
+      if (!reportData) {
+        throw new Error("No report data found");
+      }
+      
+      setReportTitle(reportData.title || 'Warcraft Logs Report');
+      
+      // Filter fights to only include those from the target zone
+      const raidFights = reportData.fights.filter((fight: any) => 
+        fight.gameZone?.name === targetZone && fight.name !== ""
+      );
+      
+      // Extract players from masterData
+      const extractedPlayers = new Map<string, Player>();
+      
+      // Process actors from masterData
+      if (reportData.masterData && reportData.masterData.actors) {
+        reportData.masterData.actors.forEach((actor: any) => {
+          // Only include character actors (not pets or NPCs)
+          if (actor.type === "Player") {
+            const playerKey = `${actor.name}-${actor.server}`;
+            if (!extractedPlayers.has(playerKey)) {
+              extractedPlayers.set(playerKey, {
+                name: actor.name,
+                server: actor.server,
+                region: "US", // Default as API doesn't always provide this
+                class: actor.subType,
+                spec: null // Will be updated from rankings if available
+              });
+            }
+          }
+        });
+      }
+      
+      // Parse the rankings data
+      let dpsRankings;
+      let hpsRankings;
+      
+      try {
+        // Rankings come as a JSON string field, so we need to parse it
+        if (typeof reportData.dpsRankings === 'string') {
+          dpsRankings = JSON.parse(reportData.dpsRankings);
+        } else {
+          dpsRankings = reportData.dpsRankings;
         }
         
-        const data = await res.json();
-        return data.map((parse: any) => ({ ...parse, playerName: name }));
-      };
+        if (typeof reportData.hpsRankings === 'string') {
+          hpsRankings = JSON.parse(reportData.hpsRankings);
+        } else {
+          hpsRankings = reportData.hpsRankings;
+        }
+      } catch (err) {
+        console.error("Error parsing rankings data:", err);
+        // Continue without rankings data
+        dpsRankings = null;
+        hpsRankings = null;
+      }
       
-      const allPlayersParsesArrays = await Promise.all(enhancedPlayers.map(fetchParsesForPlayer));
-      const allParses = allPlayersParsesArrays.flat();
+      // Create a map to identify which players are healers based on their specs
+      const healerMap = new Map<string, boolean>();
       
-      // Process unique boss encounters and organize by boss name
+      // List of healing specs
+      const healingSpecs = ['Restoration', 'Holy', 'Discipline', 'Mistweaver', 'Preservation'];
+      // If we have rankings data, update player specs and extract parse percentiles
+      if (dpsRankings && dpsRankings.data) {
+        dpsRankings.data.forEach((ranking: any) => {
+          // Process each role in the rankings
+          ['tanks', 'healers', 'dps'].forEach(role => {
+            if (ranking.roles && ranking.roles[role] && ranking.roles[role].characters) {
+              ranking.roles[role].characters.forEach((character: any) => {
+                // Update player spec information if available
+                const playerKey = `${character.name}-${character.server.name}`;
+                if (extractedPlayers.has(playerKey)) {
+                  const player = extractedPlayers.get(playerKey);
+                  if (player && (!player.spec || player.spec === "null")) {
+                    player.spec = character.spec;
+                    extractedPlayers.set(playerKey, player);
+                  }
+                }
+              });
+            }
+          });
+        });
+      }
+      
+      // Also add any healer specs from HPS rankings that we didn't get from DPS
+      if (hpsRankings && hpsRankings.data) {
+        hpsRankings.data.forEach((ranking: any) => {
+          if (ranking.roles && ranking.roles.healers && ranking.roles.healers.characters) {
+            ranking.roles.healers.characters.forEach((character: any) => {
+              const playerKey = `${character.name}-${character.server.name}`;
+              if (extractedPlayers.has(playerKey)) {
+                const player = extractedPlayers.get(playerKey);
+                if (player && (!player.spec || player.spec === "null")) {
+                  player.spec = character.spec;
+                  extractedPlayers.set(playerKey, player);
+                }
+              }
+            });
+          }
+        });
+      }
+      
+      const playersList = Array.from(extractedPlayers.values());
+      
+      // Identify healers by their spec
+      playersList.forEach(player => {
+        if (healingSpecs.includes(player.spec || '')) {
+          healerMap.set(`${player.name}-${player.server}`, true);
+        }
+      });
+      
+      // If we have HPS rankings, mark the healers
+      if (hpsRankings && hpsRankings.data) {
+        hpsRankings.data.forEach((ranking: any) => {
+          if (ranking.roles && ranking.roles.healers) {
+            const healers = ranking.roles.healers.characters || [];
+            healers.forEach((healer: any) => {
+              healerMap.set(`${healer.name}-${healer.server.name}`, true);
+            });
+          }
+        });
+      }
+      
+      setPlayers(playersList);
+      
+      // Process fights and parses
       const bossFights = raidFights.reduce((acc: any, fight: any) => {
         const bossName = fight.name;
         if (!acc[bossName]) {
           acc[bossName] = {
-            bossID: fight.boss,
-            zoneName: fight.zoneName,
+            bossID: fight.id,
+            zoneName: fight.gameZone?.name,
             fights: []
           };
         }
@@ -258,57 +397,127 @@ export const useWarcraftLogsApi = (reportCode: string, apiKey: string, targetZon
         // Format the fight data to include pulls information
         acc[bossName].fights.push({
           id: fight.id,
-          startTime: fight.start_time,
-          endTime: fight.end_time,
+          startTime: fight.startTime,
+          endTime: fight.endTime,
           isKill: fight.kill === true,
           bossPercentage: fight.bossPercentage || 0,
           fightPercentage: fight.fightPercentage || 0,
-          attempts: fight.difficulty || 0
+          difficulty: fight.difficulty || 0
         });
         
         return acc;
       }, {});
       
-      // Group parses by fight
+      // Process parses from the rankings data
       const fightPlayerParses: Record<string, FightParse> = {};
       
+      // Build a map of fight ID to parses
+      const fightIdToParses = new Map<number, Parse[]>();
+      
+      // Process both DPS and HPS rankings to build parses
+      const processFightParses = (
+        rankings: any, 
+        isFightIdPresent: (fightId: number) => boolean,
+        getParsesByFightId: (fightId: number) => Parse[]
+      ) => {
+        if (!rankings || !rankings.data) return;
+        
+        rankings.data.forEach((ranking: any) => {
+          const fightId = ranking.fightID;
+          
+          // Skip if this fight is already processed
+          if (!isFightIdPresent(fightId)) {
+            const parsesForFight: Parse[] = [];
+            fightIdToParses.set(fightId, parsesForFight);
+          }
+          
+          const existingParses = getParsesByFightId(fightId);
+          
+          // Process all roles
+          for (const role of ["tanks", "healers", "dps"]) {
+            if (ranking.roles && ranking.roles[role] && ranking.roles[role].characters) {
+              ranking.roles[role].characters.forEach((character: any) => {
+                const playerKey = `${character.name}-${character.server.name}`;
+                const isHealer = healerMap.has(playerKey);
+                
+                // For healers, we only want to process them in HPS rankings
+                // For non-healers, we only want to process them in DPS rankings
+                if ((rankings === hpsRankings && isHealer) || (rankings === dpsRankings && !isHealer)) {
+                  const existingParseIndex = existingParses.findIndex(
+                    p => p.playerName === character.name
+                  );
+                  
+                  // Create or update the parse
+                    // Create or update the parse
+                  const spec = character.spec || extractedPlayers.get(`${character.name}-${character.server.name}`)?.spec || 'Unknown';
+                  const characterClass = character.class || extractedPlayers.get(`${character.name}-${character.server.name}`)?.class || 'Unknown';
+                  
+                  // Determine if this is a healing parse based on the spec or role
+                  const isHealingSpec = ['Restoration', 'Holy', 'Discipline', 'Mistweaver', 'Preservation'].includes(spec);
+                  const isHealer = healerMap.has(`${character.name}-${character.server.name}`) || isHealingSpec;
+                  
+                  const parse = {
+                    playerName: character.name,
+                    percentile: Math.floor(character.rankPercent || 0),
+                    spec: spec,
+                    class: characterClass,
+                    isHealingParse: rankings === hpsRankings || isHealer
+                  };
+                  
+                  if (existingParseIndex >= 0) {
+                    existingParses[existingParseIndex] = parse;
+                  } else {
+                    existingParses.push(parse);
+                  }
+                }
+              });
+            }
+          }
+        });
+      };
+      
+      // Process both DPS and HPS rankings
+      processFightParses(
+        dpsRankings, 
+        (fightId) => fightIdToParses.has(fightId),
+        (fightId) => fightIdToParses.get(fightId) || []
+      );
+      
+      processFightParses(
+        hpsRankings, 
+        (fightId) => fightIdToParses.has(fightId),
+        (fightId) => fightIdToParses.get(fightId) || []
+      );
+      
+      // Create FightParse objects for each boss
       for (const [bossName, bossData] of Object.entries(bossFights)) {
         const bossID = (bossData as any).bossID;
         const zoneName = (bossData as any).zoneName;
         const fights = (bossData as any).fights;
         
-        // Get all parses for this boss
-        const bossParses = allParses.filter((parse: any) => 
-          parse.encounterID === bossID && 
-          parse.zoneName === zoneName
-        );
-        
         // Group parses by attempt/pull
         const pullsData: Pull[] = fights.map((fight: any, index: number) => {
-          const pullParses = allParses.filter((parse: any) =>
-            parse.reportID === reportCode && parse.fightID === fight.id
-          );
+          // Get parses for this fight if available
+          const pullParses = fightIdToParses.get(fight.id) || [];
           
-          const playerParseObjects = pullParses.map((parse: any) => ({
-            playerName: parse.playerName,
-            percentile: Math.floor(parse.percentile || 0),
-            spec: parse.spec,
-            class: parse.class
-          }));
+          // Sort parses by percentile (highest first)
+          const sortedParses = [...pullParses].sort((a, b) => b.percentile - a.percentile);
           
-          playerParseObjects.sort((a: Parse, b: Parse) => b.percentile - a.percentile);
+          // In v2 API, bossPercentage represents remaining health as a percentage (0-100)
+          // Unlike v1 where it was a value between 0-10000
+          const bossPercentage = fight.bossPercentage || 0;
           
           return {
             id: fight.id,
             attempt: index + 1,
             startTime: fight.startTime,
             endTime: fight.endTime,
-            isKill: fight.isKill,
+            isKill: fight.kill, // Corrected from isKill to kill to match the data structure
             duration: formatTime(fight.endTime - fight.startTime),
-            date: formatDate(reportJson.start + fight.startTime),
-            parses: playerParseObjects.length > 0 ? playerParseObjects : [], // Ensure we always have an array
+            date: formatDate(reportData.startTime + fight.startTime),
+            parses: sortedParses,
             fightDetails: {
-              bossPercentage: fight.bossPercentage || 0
+              bossPercentage: bossPercentage
             }
           };
         });
@@ -318,17 +527,42 @@ export const useWarcraftLogsApi = (reportCode: string, apiKey: string, targetZon
         
         // Collect best parse per player across all pulls
         pullsData.forEach(pull => {
-          pull.parses.forEach(parse => {
-            if (!playerBestParses[parse.playerName] || 
-                playerBestParses[parse.playerName].percentile < parse.percentile) {
-              playerBestParses[parse.playerName] = parse;
-            }
-          });
+          // Only consider kill pulls for parses
+          if (pull.isKill) {
+            pull.parses.forEach(parse => {
+              if (!playerBestParses[parse.playerName] || 
+                  playerBestParses[parse.playerName].percentile < parse.percentile) {
+                playerBestParses[parse.playerName] = parse;
+              }
+            });
+          }
         });
+        
+        // If no kill pulls have parses, try to use any pull that has parse data
+        if (Object.keys(playerBestParses).length === 0) {
+          pullsData.forEach(pull => {
+            pull.parses.forEach(parse => {
+              if (!playerBestParses[parse.playerName] || 
+                  playerBestParses[parse.playerName].percentile < parse.percentile) {
+                playerBestParses[parse.playerName] = parse;
+              }
+            });
+          });
+        }
         
         // Convert to array and sort
         const bestParses = Object.values(playerBestParses);
         bestParses.sort((a, b) => b.percentile - a.percentile);
+        
+        // Determine the final boss percentage (for wipes)
+        let finalBossPercentage = 0;
+        if (pullsData.length > 0) {
+          const lastWipePull = [...pullsData]
+            .filter(pull => !pull.isKill)
+            .sort((a, b) => b.endTime - a.endTime)[0];
+            
+          finalBossPercentage = lastWipePull ? lastWipePull.fightDetails.bossPercentage : 0;
+        }
         
         // Store in fight parses
         fightPlayerParses[bossName] = {
@@ -338,9 +572,7 @@ export const useWarcraftLogsApi = (reportCode: string, apiKey: string, targetZon
             bossID,
             zoneName,
             kill: pullsData.some(pull => pull.isKill),
-            bossPercentage: pullsData.length > 0 && !pullsData.some(pull => pull.isKill) 
-              ? pullsData[pullsData.length - 1].fightDetails.bossPercentage 
-              : 0
+            bossPercentage: finalBossPercentage
           },
           pulls: pullsData
         };
@@ -355,6 +587,7 @@ export const useWarcraftLogsApi = (reportCode: string, apiKey: string, targetZon
       }
       
     } catch (err: any) {
+      console.error('Error in fetchReport:', err);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -364,6 +597,8 @@ export const useWarcraftLogsApi = (reportCode: string, apiKey: string, targetZon
   useEffect(() => {
     if (reportCode && apiKey && targetZone) {
       fetchReport();
+    } else {
+      setLoading(false);
     }
   }, [reportCode, apiKey, targetZone, forceRefresh]);
 

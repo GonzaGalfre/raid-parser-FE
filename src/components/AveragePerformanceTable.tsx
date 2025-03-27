@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { type PlayerAverage } from '@/services/warcraftLogsApi';
+import { ClassColoredText } from './DirectColorStyles';
 
 type ClassType = 
   | 'death-knight' 
@@ -151,10 +152,14 @@ const AveragePerformanceTable: React.FC<AveragePerformanceTableProps> = ({
                   )}
                 >
                   <td className="py-3 text-sm">{index + 1}</td>
-                  <td className={`py-3 text-sm text-wow-${normalizeClassName(player.class)}`}>
-                    {player.playerName}
+                  <td className="py-3 text-sm">
+                    <ClassColoredText wowClass={player.class}>
+                      {player.playerName}
+                    </ClassColoredText>
                   </td>
-                  <td className="py-3 text-sm text-muted-foreground">{player.spec || 'Unknown'}</td>
+                  <td className="py-3 text-sm text-muted-foreground">
+                    {player.spec || 'Unknown'} {player.class}
+                  </td>
                   <td className="py-3 text-sm font-medium text-right">
                     <span 
                       className={cn(
