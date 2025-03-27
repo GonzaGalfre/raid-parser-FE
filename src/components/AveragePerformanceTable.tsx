@@ -1,6 +1,9 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { cn } from '@/lib/utils';
+import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 
 type ClassType = 
   | 'death-knight' 
@@ -121,10 +124,57 @@ const PLAYER_AVERAGES: PlayerAveragePerformance[] = [
 ];
 
 const AveragePerformanceTable: React.FC = () => {
+  const [isRankMode, setIsRankMode] = useState(true);
+  const [threshold, setThreshold] = useState('3');
+  
+  // Calculate which players meet the criteria
+  const getHighlightedPlayers = () => {
+    if (isRankMode) {
+      const rankThreshold = parseInt(threshold) || 0;
+      return PLAYER_AVERAGES.filter(player => player.rank <= rankThreshold);
+    } else {
+      const parseThreshold = parseInt(threshold) || 0;
+      return PLAYER_AVERAGES.filter(player => player.avgScore >= parseThreshold);
+    }
+  };
+  
+  const highlightedPlayers = getHighlightedPlayers();
+  const highlightedPlayerIds = new Set(highlightedPlayers.map(p => p.player));
+
   return (
     <div className="w-full animate-fade-in">
       <div className="glass-morphism p-4 rounded-lg">
-        <h2 className="text-xl font-medium mb-4">Average Players Performance</h2>
+        <div className="flex flex-col md:flex-row justify-between mb-4 items-start gap-4">
+          <h2 className="text-xl font-medium">Average Players Performance</h2>
+          
+          <div className="flex items-center space-x-6">
+            <div className="flex items-center space-x-2">
+              <Switch 
+                id="selection-mode" 
+                checked={!isRankMode}
+                onCheckedChange={(checked) => setIsRankMode(!checked)}
+              />
+              <Label htmlFor="selection-mode" className="text-sm">
+                {isRankMode ? 'Top Rank' : 'Min Parse %'}
+              </Label>
+            </div>
+            
+            <div className="flex items-center space-x-2">
+              <Input 
+                id="threshold"
+                type="number" 
+                value={threshold}
+                onChange={(e) => setThreshold(e.target.value)}
+                className="w-20"
+                min={isRankMode ? "1" : "0"}
+                max={isRankMode ? "10" : "100"}
+              />
+              <Label htmlFor="threshold" className="text-sm">
+                {isRankMode ? 'Rank' : '%'}
+              </Label>
+            </div>
+          </div>
+        </div>
         
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -140,9 +190,17 @@ const AveragePerformanceTable: React.FC = () => {
             </thead>
             <tbody>
               {PLAYER_AVERAGES.map((player) => (
-                <tr key={player.rank} className="border-b border-white/5 last:border-0">
+                <tr 
+                  key={player.rank} 
+                  className={cn(
+                    "border-b border-white/5 last:border-0",
+                    highlightedPlayerIds.has(player.player) && "bg-primary/10"
+                  )}
+                >
                   <td className="py-3 text-sm">{player.rank}</td>
-                  <td className={`py-3 text-sm text-wow-${player.playerClass}`}>{player.player}</td>
+                  <td className={`py-3 text-sm text-wow-${player.playerClass}`}>
+                    {player.player}
+                  </td>
                   <td className="py-3 text-sm text-muted-foreground">{player.spec}</td>
                   <td className="py-3 text-sm font-medium text-right">
                     <span 
