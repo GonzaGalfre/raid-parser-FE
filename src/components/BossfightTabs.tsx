@@ -131,7 +131,7 @@ const BossfightTabs: React.FC<BossfightTabsProps> = ({
       {reportIds.length > 1 && (
         <div className="glass-morphism rounded-t-lg mb-4">
           <div className="flex border-b border-white/10 overflow-x-auto">
-            {reportIds.map((reportId) => (
+            {reportIds.map((reportId, index) => (
               <button
                 key={reportId}
                 className={cn(
@@ -142,7 +142,7 @@ const BossfightTabs: React.FC<BossfightTabsProps> = ({
                 )}
                 onClick={() => setSelectedReport(reportId)}
               >
-                {reportTitles[reportId] || `Report ${reportId.substring(0, 8)}`}
+                {reportTitles[reportId] ? `#${index + 1}: ${reportTitles[reportId]}` : `Report ${reportId.substring(0, 8)}`}
               </button>
             ))}
           </div>

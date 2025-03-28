@@ -69,10 +69,11 @@ const Index = () => {
     }, {} as Record<string, Record<string, any>>);
   };
 
-  // Create a report titles object for BossfightTabs
+  // Create a report titles object for BossfightTabs with index numbers
   const getReportTitles = () => {
-    return Object.entries(reportsData).reduce((acc, [reportId, data]) => {
-      acc[reportId] = data.reportTitle;
+    const reportIds = Object.keys(reportsData);
+    return reportIds.reduce((acc, reportId, index) => {
+      acc[reportId] = reportsData[reportId].reportTitle;
       return acc;
     }, {} as Record<string, string>);
   };
@@ -89,7 +90,9 @@ const Index = () => {
       <div className="container mx-auto max-w-7xl">
         <header className="mb-8 relative">
           <h1 className="text-3xl font-bold text-gradient mb-2">
-            {currentReportData?.reportTitle || 'Raid Performance'}
+            {currentReportData ? 
+              `#${Object.keys(reportsData).indexOf(selectedReport) + 1}: ${currentReportData.reportTitle}` : 
+              'Raid Performance'}
           </h1>
           <p className="text-muted-foreground">
             {isConfigured 
