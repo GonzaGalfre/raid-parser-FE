@@ -157,10 +157,11 @@ const AveragePerformanceTable: React.FC<AveragePerformanceTableProps> = ({
                 <th className="pb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Rank</th>
                 <th className="pb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Player</th>
                 <th className="pb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Spec</th>
+                {/* Moved Attendance column before parse columns */}
+                <th className="pb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground text-right">Attendance</th>
                 <th className="pb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground text-right">Log Parse</th>
                 <th className="pb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground text-right">Wipefest Parse</th>
                 <th className="pb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground text-right">Avg Score</th>
-                <th className="pb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground text-right">Attendance</th>
               </tr>
             </thead>
             <tbody>
@@ -180,6 +181,16 @@ const AveragePerformanceTable: React.FC<AveragePerformanceTableProps> = ({
                   </td>
                   <td className="py-3 text-sm text-muted-foreground">
                     {player.spec || 'Unknown'} {player.class}
+                  </td>
+                  {/* Moved Attendance column before parse columns */}
+                  <td className="py-3 text-sm font-medium text-right">
+                    {player.attendance ? (
+                      <span className="px-2 py-1 rounded-md">
+                        {player.attendance.present}/{player.attendance.total}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">N/A</span>
+                    )}
                   </td>
                   <td className="py-3 text-sm font-medium text-right">
                     <span 
@@ -222,15 +233,6 @@ const AveragePerformanceTable: React.FC<AveragePerformanceTableProps> = ({
                     >
                       {player.totalAverage}%
                     </span>
-                  </td>
-                  <td className="py-3 text-sm font-medium text-right">
-                    {player.attendance ? (
-                      <span className="px-2 py-1 rounded-md">
-                        {player.attendance.present}/{player.attendance.total}
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground">N/A</span>
-                    )}
                   </td>
                 </tr>
               ))}

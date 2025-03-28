@@ -39,6 +39,12 @@ export interface FightParse {
   pulls: Pull[];
 }
 
+// New interface to store attendance data
+export interface AttendanceData {
+  playerAttendance: Record<string, number>;
+  totalPulls: number;
+}
+
 export interface ReportData {
   reportCode: string;
   reportTitle: string;
@@ -47,6 +53,7 @@ export interface ReportData {
   selectedFight: string;
   loading: boolean;
   error: string | null;
+  attendanceData?: AttendanceData; // Add attendance data to the report
 }
 
 export interface WipefestScore {
@@ -62,7 +69,7 @@ export interface PlayerAverage {
   totalParses: number;
   wipefestScore: number;
   totalAverage: number;
-  // New attendance field
+  // Updated attendance field
   attendance?: {
     present: number;
     total: number;
@@ -154,6 +161,104 @@ export const useWarcraftLogsApi = (initialReportCodes: string[], apiKey: string,
     setWipefestScores(newScores);
   };
 
+  // NEW: Function to fetch attendance data
+  const fetchAttendanceData = async (reportCode: string): Promise<AttendanceData | null> => {
+    if (!reportCode || !apiKey) return null;
+    
+    try {
+      // Prepare GraphQL query specifically for attendance data
+      const attendanceQuery = `
+      query {
+        reportData {
+          report(code: "${reportCode}") {
+            fights {
+              id
+              friendlyPlayers
+            }
+            masterData {
+              actors {
+                id
+                name
+                server
+                type
+              }
+            }
+          }
+        }
+      }`;
+
+      // Make the GraphQL request
+      const response = await fetch('https://www.warcraftlogs.com/api/v2/client', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({ query: attendanceQuery })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error while fetching attendance: ${response.status}`);
+      }
+
+      const responseJson = await response.json();
+      
+      // Check for GraphQL errors
+      if (responseJson.errors) {
+        throw new Error(`GraphQL error: ${responseJson.errors[0].message}`);
+      }
+
+      const reportData = responseJson.data.reportData.report;
+      
+      if (!reportData) {
+        throw new Error("No report data found");
+      }
+      
+      // Process attendance data
+      const playerAttendance: Record<string, number> = {};
+      const actorsMap: Record<number, {name: string, server: string}> = {};
+      
+      // First, map actor IDs to player names
+      if (reportData.masterData && reportData.masterData.actors) {
+        reportData.masterData.actors.forEach((actor: any) => {
+          if (actor.type === "Player") {
+            actorsMap[actor.id] = {
+              name: actor.name,
+              server: actor.server
+            };
+          }
+        });
+      }
+      
+      // Count attendance for each fight
+      let totalPulls = 0;
+      if (reportData.fights) {
+        totalPulls = reportData.fights.length;
+        
+        reportData.fights.forEach((fight: any) => {
+          if (fight.friendlyPlayers) {
+            fight.friendlyPlayers.forEach((playerId: number) => {
+              const player = actorsMap[playerId];
+              if (player) {
+                const playerKey = player.name;
+                playerAttendance[playerKey] = (playerAttendance[playerKey] || 0) + 1;
+              }
+            });
+          }
+        });
+      }
+      
+      return { 
+        playerAttendance,
+        totalPulls
+      };
+      
+    } catch (err: any) {
+      console.error('Error fetching attendance data:', err);
+      return null;
+    }
+  };
+
   // Calculate player averages for a specific report
   const calculatePlayerAverages = (reportCode: string): PlayerAverage[] => {
     const reportData = reportsData[reportCode];
@@ -167,20 +272,31 @@ export const useWarcraftLogsApi = (initialReportCodes: string[], apiKey: string,
       parses: number[]
     }> = {};
     
-    // Collect attendance data
-    const totalPulls = countTotalPulls([reportCode]);
-    const playerAttendance: Record<string, number> = {};
+    // Use attendance data if available from the report
+    let totalPulls = 0;
+    let playerAttendance: Record<string, number> = {};
     
-    Object.values(reportData.fightParses).forEach(fight => {
-      // Count player appearances in pulls
-      fight.pulls.forEach(pull => {
-        const playersInPull = new Set(pull.parses.map(parse => parse.playerName));
-        playersInPull.forEach(playerName => {
-          playerAttendance[playerName] = (playerAttendance[playerName] || 0) + 1;
+    if (reportData.attendanceData) {
+      // Use the accurate attendance data fetched specifically for this purpose
+      totalPulls = reportData.attendanceData.totalPulls;
+      playerAttendance = reportData.attendanceData.playerAttendance;
+    } else {
+      // Fallback to the old method if attendance data isn't available
+      totalPulls = countTotalPulls([reportCode]);
+      
+      // Count player appearances in pulls using the original method
+      Object.values(reportData.fightParses).forEach(fight => {
+        fight.pulls.forEach(pull => {
+          const playersInPull = new Set(pull.parses.map(parse => parse.playerName));
+          playersInPull.forEach(playerName => {
+            playerAttendance[playerName] = (playerAttendance[playerName] || 0) + 1;
+          });
         });
       });
-      
-      // Collect parses
+    }
+    
+    // Collect parses
+    Object.values(reportData.fightParses).forEach(fight => {
       fight.parses.forEach(parse => {
         const playerKey = `${parse.playerName}-${parse.spec}`;
         if (!playerParses[playerKey]) {
@@ -249,21 +365,35 @@ export const useWarcraftLogsApi = (initialReportCodes: string[], apiKey: string,
     }> = {};
     
     // Collect attendance data across all reports
-    const totalPulls = countTotalPulls(Object.keys(reportsData));
+    let totalPulls = 0;
     const playerAttendance: Record<string, number> = {};
     
-    // Process all reports
+    // Process all reports to gather attendance data
     Object.values(reportsData).forEach(reportData => {
-      // Process all fights in each report
-      Object.values(reportData.fightParses).forEach(fight => {
-        // Count player appearances in pulls
-        fight.pulls.forEach(pull => {
-          const playersInPull = new Set(pull.parses.map(parse => parse.playerName));
-          playersInPull.forEach(playerName => {
-            playerAttendance[playerName] = (playerAttendance[playerName] || 0) + 1;
+      if (reportData.attendanceData) {
+        // Add this report's total pulls to the overall count
+        totalPulls += reportData.attendanceData.totalPulls;
+        
+        // Add this report's attendance counts to each player
+        Object.entries(reportData.attendanceData.playerAttendance).forEach(([playerName, count]) => {
+          playerAttendance[playerName] = (playerAttendance[playerName] || 0) + count;
+        });
+      } else {
+        // Fallback to original method if no attendance data
+        Object.values(reportData.fightParses).forEach(fight => {
+          totalPulls += fight.pulls.length;
+          
+          fight.pulls.forEach(pull => {
+            const playersInPull = new Set(pull.parses.map(parse => parse.playerName));
+            playersInPull.forEach(playerName => {
+              playerAttendance[playerName] = (playerAttendance[playerName] || 0) + 1;
+            });
           });
         });
-        
+      }
+      
+      // Process all fights in each report for parses
+      Object.values(reportData.fightParses).forEach(fight => {
         // Collect parses
         fight.parses.forEach(parse => {
           const playerKey = `${parse.playerName}-${parse.spec}`;
@@ -638,7 +768,7 @@ export const useWarcraftLogsApi = (initialReportCodes: string[], apiKey: string,
             attempt: index + 1,
             startTime: fight.startTime,
             endTime: fight.endTime,
-            isKill: fight.kill, // Corrected from isKill to kill to match the data structure
+            isKill: fight.isKill, 
             duration: formatTime(fight.endTime - fight.startTime),
             date: formatDate(reportData.startTime + fight.startTime),
             parses: sortedParses,
@@ -708,6 +838,9 @@ export const useWarcraftLogsApi = (initialReportCodes: string[], apiKey: string,
       const fightNames = Object.keys(fightPlayerParses);
       const firstFight = fightNames.length > 0 ? fightNames[0] : '';
       
+      // Fetch attendance data separately
+      const attendanceData = await fetchAttendanceData(reportCode);
+      
       // Return the processed report data
       return {
         reportCode,
@@ -716,7 +849,8 @@ export const useWarcraftLogsApi = (initialReportCodes: string[], apiKey: string,
         fightParses: fightPlayerParses,
         selectedFight: firstFight,
         loading: false,
-        error: null
+        error: null,
+        attendanceData // Include the attendance data
       };
       
     } catch (err: any) {
