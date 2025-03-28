@@ -21,7 +21,10 @@ type ClassType =
   | 'evoker';
 
 interface BossfightTabsProps {
-  fightParses: Record<string, FightParse>;
+  fightParses: Record<string, Record<string, FightParse>>;  // Changed to support multiple reports
+  reportTitles: Record<string, string>;  // New prop to display report titles
+  selectedReport: string;  // New prop for the currently selected report
+  setSelectedReport: (reportId: string) => void;  // Function to change the selected report
   selectedFight: string;
   setSelectedFight: (fightName: string) => void;
   loading: boolean;
@@ -52,16 +55,31 @@ const normalizeClassName = (wowClass: string): ClassType => {
 
 const BossfightTabs: React.FC<BossfightTabsProps> = ({
   fightParses,
+  reportTitles,
+  selectedReport,
+  setSelectedReport,
   selectedFight,
   setSelectedFight,
   loading
 }) => {
-  const fightNames = Object.keys(fightParses);
+  // Get the list of available reports
+  const reportIds = Object.keys(fightParses);
+  
+  // Get fight names for the currently selected report
+  const fightNames = selectedReport && fightParses[selectedReport] 
+    ? Object.keys(fightParses[selectedReport]) 
+    : [];
+  
   const [selectedPullTab, setSelectedPullTab] = useState<string>("overview");
   const [selectedPull, setSelectedPull] = useState<number | null>(null);
   
+  // Get the current report's selected boss fight parses
+  const currentFightParses = selectedReport && selectedFight && fightParses[selectedReport] 
+    ? fightParses[selectedReport][selectedFight] 
+    : null;
+  
   // Get pull data from the fight parses
-  const bossPulls = fightParses[selectedFight]?.pulls || [];
+  const bossPulls = currentFightParses?.pulls || [];
   
   // Find the first kill pull (if any) for default selection
   useEffect(() => {
@@ -71,7 +89,17 @@ const BossfightTabs: React.FC<BossfightTabsProps> = ({
     } else {
       setSelectedPull(null);
     }
-  }, [selectedFight, bossPulls]);
+  }, [selectedFight, bossPulls, selectedReport]);
+
+  // Handle when a new report is selected (select the first fight)
+  useEffect(() => {
+    if (selectedReport && fightParses[selectedReport]) {
+      const reportFights = Object.keys(fightParses[selectedReport]);
+      if (reportFights.length > 0 && !fightParses[selectedReport][selectedFight]) {
+        setSelectedFight(reportFights[0]);
+      }
+    }
+  }, [selectedReport, fightParses, selectedFight, setSelectedFight]);
 
   if (loading) {
     return (
@@ -85,12 +113,12 @@ const BossfightTabs: React.FC<BossfightTabsProps> = ({
     );
   }
 
-  if (fightNames.length === 0) {
+  if (reportIds.length === 0) {
     return (
       <div className="w-full animate-fade-in">
         <div className="glass-morphism p-4 rounded-lg">
           <div className="flex justify-center items-center h-40">
-            <p className="text-muted-foreground">No fight data available. Please check your configuration.</p>
+            <p className="text-muted-foreground">No report data available. Please check your configuration.</p>
           </div>
         </div>
       </div>
@@ -99,6 +127,28 @@ const BossfightTabs: React.FC<BossfightTabsProps> = ({
 
   return (
     <div className="w-full animate-fade-in">
+      {/* Report Selection Tabs - Only show if there are multiple reports */}
+      {reportIds.length > 1 && (
+        <div className="glass-morphism rounded-t-lg mb-4">
+          <div className="flex border-b border-white/10 overflow-x-auto">
+            {reportIds.map((reportId) => (
+              <button
+                key={reportId}
+                className={cn(
+                  "px-4 py-3 text-sm font-medium transition-colors focus:outline-none whitespace-nowrap",
+                  selectedReport === reportId
+                    ? "text-primary border-b-2 border-primary"
+                    : "text-muted-foreground hover:text-primary"
+                )}
+                onClick={() => setSelectedReport(reportId)}
+              >
+                {reportTitles[reportId] || `Report ${reportId.substring(0, 8)}`}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="glass-morphism rounded-t-lg">
         <div className="flex border-b border-white/10 overflow-x-auto">
           {fightNames.map((bossName) => (
@@ -123,7 +173,7 @@ const BossfightTabs: React.FC<BossfightTabsProps> = ({
       </div>
 
       <div className="mt-6 space-y-8 animate-fade-in">
-        {selectedFight && (
+        {selectedFight && currentFightParses && (
           <div className="glass-morphism p-4 rounded-lg">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-medium">
@@ -132,14 +182,14 @@ const BossfightTabs: React.FC<BossfightTabsProps> = ({
               <span
                 className={cn(
                   "px-3 py-1 text-xs font-semibold rounded-full",
-                  fightParses[selectedFight]?.fightDetails?.kill
+                  currentFightParses.fightDetails?.kill
                     ? "bg-kill/20 text-kill"
                     : "bg-wipe/20 text-wipe"
                 )}
               >
-                {fightParses[selectedFight]?.fightDetails?.kill 
+                {currentFightParses.fightDetails?.kill 
                   ? "Kill" 
-                  : `${Math.round(fightParses[selectedFight]?.fightDetails?.bossPercentage || 0)}% left`}
+                  : `${Math.round(currentFightParses.fightDetails?.bossPercentage || 0)}% left`}
               </span>
             </div>
             
@@ -161,7 +211,7 @@ const BossfightTabs: React.FC<BossfightTabsProps> = ({
                       </tr>
                     </thead>
                     <tbody>
-                      {fightParses[selectedFight]?.parses.map((parse, index) => (
+                      {currentFightParses.parses.map((parse, index) => (
                         <tr key={`${parse.playerName}-${index}`} className="border-b border-white/5 last:border-0">
                           <td className="py-3 text-sm">{index + 1}</td>
                           <td className="py-3 text-sm">

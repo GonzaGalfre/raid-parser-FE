@@ -13,32 +13,32 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { Settings } from 'lucide-react';
+import { Settings, Plus, Trash2 } from 'lucide-react';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface ConfigPanelProps {
-  reportCode: string;
-  setReportCode: (code: string) => void;
+  reportCodes: string[];
+  updateReportCodes: (codes: string[]) => void;
   setApiKey: (key: string) => void;
   targetZone: string;
   setTargetZone: (zone: string) => void;
   importWipefestScores: (csv: string) => void;
-  fetchReport: () => void;
+  fetchReports: () => void;
 }
 
 const ConfigPanel: React.FC<ConfigPanelProps> = ({
-  reportCode,
-  setReportCode,
+  reportCodes,
+  updateReportCodes,
   setApiKey,
   targetZone,
   setTargetZone,
   importWipefestScores,
-  fetchReport
+  fetchReports
 }) => {
   const [open, setOpen] = useState(false);
   const [wipefestCsv, setWipefestCsv] = useState('');
-  const [localReportCode, setLocalReportCode] = useState(reportCode);
+  const [localReportCodes, setLocalReportCodes] = useState<string[]>(reportCodes.length ? [...reportCodes] : ['']);
   const [localApiKey, setLocalApiKey] = useState('');
   const [authMethod, setAuthMethod] = useState<'client' | 'token'>('token');
   const [clientId, setClientId] = useState('');
@@ -58,6 +58,13 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({
     if (savedToken) setLocalApiKey(savedToken);
     if (savedAuthMethod) setAuthMethod(savedAuthMethod);
   }, []);
+
+  // Update local report codes when parent prop changes
+  useEffect(() => {
+    if (reportCodes.length) {
+      setLocalReportCodes([...reportCodes]);
+    }
+  }, [reportCodes]);
   
   const fetchOAuthToken = async () => {
     try {
@@ -96,6 +103,27 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({
     }
   };
   
+  // Add a new report code input field
+  const addReportCodeField = () => {
+    setLocalReportCodes([...localReportCodes, '']);
+  };
+
+  // Remove a report code input field
+  const removeReportCodeField = (index: number) => {
+    if (localReportCodes.length > 1) {
+      const updatedCodes = [...localReportCodes];
+      updatedCodes.splice(index, 1);
+      setLocalReportCodes(updatedCodes);
+    }
+  };
+
+  // Update a specific report code
+  const updateReportCode = (index: number, value: string) => {
+    const updatedCodes = [...localReportCodes];
+    updatedCodes[index] = value;
+    setLocalReportCodes(updatedCodes);
+  };
+  
   const handleSave = async () => {
     let apiToken = localApiKey;
     
@@ -114,7 +142,8 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({
       localStorage.setItem('wclAuthMethod', 'token');
     }
     
-    setReportCode(localReportCode);
+    // Update report codes and API key
+    updateReportCodes(localReportCodes.filter(code => code.trim() !== ''));
     setApiKey(apiToken);
     setTargetZone("Liberation of Undermine");
     
@@ -123,7 +152,7 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({
     }
     
     setOpen(false);
-    fetchReport();
+    fetchReports();
   };
   
   return (
@@ -218,18 +247,39 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({
         </Tabs>
         
         <div className="grid gap-4 py-4">
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="reportCode" className="text-right">
-              Report Code
-            </Label>
-            <Input
-              id="reportCode"
-              value={localReportCode}
-              onChange={(e) => setLocalReportCode(e.target.value)}
-              className="col-span-3"
-              placeholder="Log report code (e.g. a2bC3d4E)"
-            />
+          <div className="flex items-center justify-between mb-2">
+            <Label className="text-sm font-medium">Report Codes</Label>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={addReportCodeField}
+              className="h-8 gap-1"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              <span>Add</span>
+            </Button>
           </div>
+          
+          {localReportCodes.map((code, index) => (
+            <div key={index} className="flex items-center gap-2">
+              <Input
+                value={code}
+                onChange={(e) => updateReportCode(index, e.target.value)}
+                className="flex-1"
+                placeholder="Log report code (e.g. a2bC3d4E)"
+              />
+              {localReportCodes.length > 1 && (
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  onClick={() => removeReportCodeField(index)}
+                  className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+          ))}
           
           <div className="grid grid-cols-4 items-center gap-4">
             <Label className="text-right">Zone</Label>

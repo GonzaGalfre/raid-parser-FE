@@ -1,5 +1,5 @@
 // src/services/warcraftLogsApi.ts
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 // Types
 export interface Player {
@@ -39,6 +39,16 @@ export interface FightParse {
   pulls: Pull[];
 }
 
+export interface ReportData {
+  reportCode: string;
+  reportTitle: string;
+  players: Player[];
+  fightParses: Record<string, FightParse>;
+  selectedFight: string;
+  loading: boolean;
+  error: string | null;
+}
+
 export interface WipefestScore {
   [playerName: string]: number;
 }
@@ -54,15 +64,13 @@ export interface PlayerAverage {
   totalAverage: number;
 }
 
-export const useWarcraftLogsApi = (reportCode: string, apiKey: string, targetZone: string, forceRefresh?: number) => {
+export const useWarcraftLogsApi = (initialReportCodes: string[], apiKey: string, targetZone: string, forceRefresh?: number) => {
+  const [reportCodes, setReportCodes] = useState<string[]>(initialReportCodes.filter(Boolean));
+  const [reportsData, setReportsData] = useState<Record<string, ReportData>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [reportTitle, setReportTitle] = useState<string>('Warcraft Logs Report');
-  const [players, setPlayers] = useState<Player[]>([]);
-  const [fightParses, setFightParses] = useState<Record<string, FightParse>>({});
-  const [selectedFight, setSelectedFight] = useState<string>('');
   const [wipefestScores, setWipefestScores] = useState<WipefestScore>({});
-
+  
   // Class color utility function
   const getClassColor = (className: string): string => {
     const classColors: Record<string, string> = {
@@ -141,9 +149,10 @@ export const useWarcraftLogsApi = (reportCode: string, apiKey: string, targetZon
     setWipefestScores(newScores);
   };
 
-  // Calculate player averages
-  const calculatePlayerAverages = (): PlayerAverage[] => {
-    if (Object.keys(fightParses).length === 0) return [];
+  // Calculate player averages for a specific report
+  const calculatePlayerAverages = (reportCode: string): PlayerAverage[] => {
+    const reportData = reportsData[reportCode];
+    if (!reportData || Object.keys(reportData.fightParses).length === 0) return [];
     
     // Collect all parse entries for each player
     const playerParses: Record<string, {
@@ -153,7 +162,7 @@ export const useWarcraftLogsApi = (reportCode: string, apiKey: string, targetZon
       parses: number[]
     }> = {};
     
-    Object.values(fightParses).forEach(fight => {
+    Object.values(reportData.fightParses).forEach(fight => {
       fight.parses.forEach(parse => {
         if (!playerParses[parse.playerName]) {
           playerParses[parse.playerName] = {
@@ -187,10 +196,22 @@ export const useWarcraftLogsApi = (reportCode: string, apiKey: string, targetZon
     return playerAverages.sort((a, b) => b.totalAverage - a.totalAverage);
   };
 
-  // Fetch report data using v2 GraphQL API
-  const fetchReport = async () => {
-    setLoading(true);
-    setError(null);
+  // Update selected fight for a specific report
+  const setSelectedFight = (reportCode: string, fightName: string) => {
+    if (reportsData[reportCode]) {
+      setReportsData(prevData => ({
+        ...prevData,
+        [reportCode]: {
+          ...prevData[reportCode],
+          selectedFight: fightName
+        }
+      }));
+    }
+  };
+
+  // Fetch a single report data using v2 GraphQL API
+  const fetchSingleReport = async (reportCode: string): Promise<ReportData | null> => {
+    if (!reportCode || !apiKey) return null;
     
     try {
       // Prepare GraphQL query
@@ -262,7 +283,7 @@ export const useWarcraftLogsApi = (reportCode: string, apiKey: string, targetZon
         throw new Error("No report data found");
       }
       
-      setReportTitle(reportData.title || 'Warcraft Logs Report');
+      const reportTitle = reportData.title || 'Warcraft Logs Report';
       
       // Filter fights to only include those from the target zone
       const raidFights = reportData.fights.filter((fight: any) => 
@@ -381,8 +402,6 @@ export const useWarcraftLogsApi = (reportCode: string, apiKey: string, targetZon
         });
       }
       
-      setPlayers(playersList);
-      
       // Process fights and parses
       const bossFights = raidFights.reduce((acc: any, fight: any) => {
         const bossName = fight.name;
@@ -448,7 +467,6 @@ export const useWarcraftLogsApi = (reportCode: string, apiKey: string, targetZon
                   );
                   
                   // Create or update the parse
-                    // Create or update the parse
                   const spec = character.spec || extractedPlayers.get(`${character.name}-${character.server.name}`)?.spec || 'Unknown';
                   const characterClass = character.class || extractedPlayers.get(`${character.name}-${character.server.name}`)?.class || 'Unknown';
                   
@@ -577,45 +595,90 @@ export const useWarcraftLogsApi = (reportCode: string, apiKey: string, targetZon
           pulls: pullsData
         };
       }
-      
-      setFightParses(fightPlayerParses);
-      
-      // Set the first fight as selected by default if there are fights
+
+      // Get the first fight as default selected
       const fightNames = Object.keys(fightPlayerParses);
-      if (fightNames.length > 0) {
-        setSelectedFight(fightNames[0]);
-      }
+      const firstFight = fightNames.length > 0 ? fightNames[0] : '';
+      
+      // Return the processed report data
+      return {
+        reportCode,
+        reportTitle,
+        players: playersList,
+        fightParses: fightPlayerParses,
+        selectedFight: firstFight,
+        loading: false,
+        error: null
+      };
       
     } catch (err: any) {
-      console.error('Error in fetchReport:', err);
+      console.error('Error fetching report:', reportCode, err);
+      return {
+        reportCode,
+        reportTitle: 'Error Loading Report',
+        players: [],
+        fightParses: {},
+        selectedFight: '',
+        loading: false,
+        error: err.message
+      };
+    }
+  };
+
+  // Fetch all reports data
+  const fetchReports = useCallback(async () => {
+    if (reportCodes.length === 0 || !apiKey) {
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const newReportsData: Record<string, ReportData> = {};
+      
+      // Fetch each report in sequence
+      for (const reportCode of reportCodes) {
+        if (!reportCode) continue;
+        
+        const reportData = await fetchSingleReport(reportCode);
+        if (reportData) {
+          newReportsData[reportCode] = reportData;
+        }
+      }
+      
+      setReportsData(newReportsData);
+    } catch (err: any) {
+      console.error('Error fetching reports:', err);
       setError(err.message);
     } finally {
       setLoading(false);
     }
+  }, [reportCodes, apiKey, targetZone]);
+
+  // Update report codes
+  const updateReportCodes = (newCodes: string[]) => {
+    setReportCodes(newCodes.filter(Boolean));
   };
 
+  // Effect to fetch reports when dependencies change
   useEffect(() => {
-    if (reportCode && apiKey && targetZone) {
-      fetchReport();
-    } else {
-      setLoading(false);
-    }
-  }, [reportCode, apiKey, targetZone, forceRefresh]);
+    fetchReports();
+  }, [fetchReports, forceRefresh]);
 
   return {
     loading,
     error,
-    reportTitle,
-    players,
-    fightParses,
-    selectedFight,
-    setSelectedFight,
+    reportsData,
     wipefestScores,
     importWipefestScores,
     calculatePlayerAverages,
+    setSelectedFight,
+    updateReportCodes,
+    fetchReports,
     getClassColor,
     formatTime,
-    getPercentileBadgeVariant,
-    fetchReport
+    getPercentileBadgeVariant
   };
 };
