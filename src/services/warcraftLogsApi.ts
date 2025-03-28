@@ -62,6 +62,11 @@ export interface PlayerAverage {
   totalParses: number;
   wipefestScore: number;
   totalAverage: number;
+  // New attendance field
+  attendance?: {
+    present: number;
+    total: number;
+  };
 }
 
 export const useWarcraftLogsApi = (initialReportCodes: string[], apiKey: string, targetZone: string, forceRefresh?: number) => {
@@ -162,10 +167,24 @@ export const useWarcraftLogsApi = (initialReportCodes: string[], apiKey: string,
       parses: number[]
     }> = {};
     
+    // Collect attendance data
+    const totalPulls = countTotalPulls([reportCode]);
+    const playerAttendance: Record<string, number> = {};
+    
     Object.values(reportData.fightParses).forEach(fight => {
+      // Count player appearances in pulls
+      fight.pulls.forEach(pull => {
+        const playersInPull = new Set(pull.parses.map(parse => parse.playerName));
+        playersInPull.forEach(playerName => {
+          playerAttendance[playerName] = (playerAttendance[playerName] || 0) + 1;
+        });
+      });
+      
+      // Collect parses
       fight.parses.forEach(parse => {
-        if (!playerParses[parse.playerName]) {
-          playerParses[parse.playerName] = {
+        const playerKey = `${parse.playerName}-${parse.spec}`;
+        if (!playerParses[playerKey]) {
+          playerParses[playerKey] = {
             playerName: parse.playerName,
             class: parse.class,
             spec: parse.spec, // Will use the most recent spec
@@ -173,7 +192,7 @@ export const useWarcraftLogsApi = (initialReportCodes: string[], apiKey: string,
           };
         }
         
-        playerParses[parse.playerName].parses.push(parse.percentile);
+        playerParses[playerKey].parses.push(parse.percentile);
       });
     });
     
@@ -188,11 +207,100 @@ export const useWarcraftLogsApi = (initialReportCodes: string[], apiKey: string,
         averagePercentile: Math.round(average),
         totalParses: player.parses.length,
         wipefestScore,
-        totalAverage
+        totalAverage,
+        attendance: {
+          present: playerAttendance[player.playerName] || 0,
+          total: totalPulls
+        }
       };
     });
     
     // Sort by total average if available, otherwise by parse percentile (highest first)
+    return playerAverages.sort((a, b) => b.totalAverage - a.totalAverage);
+  };
+
+  // Count total pulls across specified reports
+  const countTotalPulls = (reportCodesToCount: string[]): number => {
+    let totalPulls = 0;
+    
+    reportCodesToCount.forEach(reportCode => {
+      const report = reportsData[reportCode];
+      if (report) {
+        Object.values(report.fightParses).forEach(fight => {
+          totalPulls += fight.pulls.length;
+        });
+      }
+    });
+    
+    return totalPulls;
+  };
+
+  // Calculate player averages across all reports
+  const calculateMergedPlayerAverages = (): PlayerAverage[] => {
+    // If no reports data is available, return empty array
+    if (Object.keys(reportsData).length === 0) return [];
+    
+    // Collect all parse entries for each player across all reports
+    const playerParses: Record<string, {
+      playerName: string,
+      class: string,
+      spec: string | null,
+      parses: number[]
+    }> = {};
+    
+    // Collect attendance data across all reports
+    const totalPulls = countTotalPulls(Object.keys(reportsData));
+    const playerAttendance: Record<string, number> = {};
+    
+    // Process all reports
+    Object.values(reportsData).forEach(reportData => {
+      // Process all fights in each report
+      Object.values(reportData.fightParses).forEach(fight => {
+        // Count player appearances in pulls
+        fight.pulls.forEach(pull => {
+          const playersInPull = new Set(pull.parses.map(parse => parse.playerName));
+          playersInPull.forEach(playerName => {
+            playerAttendance[playerName] = (playerAttendance[playerName] || 0) + 1;
+          });
+        });
+        
+        // Collect parses
+        fight.parses.forEach(parse => {
+          const playerKey = `${parse.playerName}-${parse.spec}`;
+          if (!playerParses[playerKey]) {
+            playerParses[playerKey] = {
+              playerName: parse.playerName,
+              class: parse.class,
+              spec: parse.spec,
+              parses: []
+            };
+          }
+          
+          playerParses[playerKey].parses.push(parse.percentile);
+        });
+      });
+    });
+    
+    // Calculate averages for each player
+    const playerAverages = Object.values(playerParses).map(player => {
+      const average = player.parses.reduce((sum, val) => sum + val, 0) / player.parses.length;
+      const wipefestScore = wipefestScores[player.playerName] || 0;
+      const totalAverage = Math.round((Math.round(average) + wipefestScore) / 2);
+      
+      return {
+        ...player,
+        averagePercentile: Math.round(average),
+        totalParses: player.parses.length,
+        wipefestScore,
+        totalAverage,
+        attendance: {
+          present: playerAttendance[player.playerName] || 0,
+          total: totalPulls
+        }
+      };
+    });
+    
+    // Sort by total average (highest first)
     return playerAverages.sort((a, b) => b.totalAverage - a.totalAverage);
   };
 
@@ -674,6 +782,7 @@ export const useWarcraftLogsApi = (initialReportCodes: string[], apiKey: string,
     wipefestScores,
     importWipefestScores,
     calculatePlayerAverages,
+    calculateMergedPlayerAverages, // New merged averages function
     setSelectedFight,
     updateReportCodes,
     fetchReports,

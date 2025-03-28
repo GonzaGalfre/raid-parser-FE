@@ -43,6 +43,7 @@ const Index = () => {
     wipefestScores,
     importWipefestScores,
     calculatePlayerAverages,
+    calculateMergedPlayerAverages,
     setSelectedFight,
     updateReportCodes,
     fetchReports,
@@ -69,7 +70,7 @@ const Index = () => {
     }, {} as Record<string, Record<string, any>>);
   };
 
-  // Create a report titles object for BossfightTabs with index numbers
+  // Create a report titles object for BossfightTabs
   const getReportTitles = () => {
     const reportIds = Object.keys(reportsData);
     return reportIds.reduce((acc, reportId, index) => {
@@ -80,6 +81,9 @@ const Index = () => {
 
   // Get the current report data
   const currentReportData = selectedReport && reportsData[selectedReport];
+
+  // Calculate merged player averages
+  const mergedAverages = calculateMergedPlayerAverages();
 
   // Determine configuration status
   const isConfigured = reportCodes.some(code => code.trim() !== '') && apiKey;
@@ -183,6 +187,7 @@ const Index = () => {
               />
               <AveragePerformanceTable 
                 playerAverages={currentReportData ? calculatePlayerAverages(selectedReport) : []}
+                mergedPlayerAverages={mergedAverages}
                 loading={loading} 
               />
             </div>

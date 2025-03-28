@@ -24,6 +24,7 @@ type ClassType =
 
 interface AveragePerformanceTableProps {
   playerAverages: PlayerAverage[];
+  mergedPlayerAverages: PlayerAverage[]; // New prop for merged data across all reports
   loading: boolean;
 }
 
@@ -52,19 +53,24 @@ const normalizeClassName = (wowClass: string): ClassType => {
 
 const AveragePerformanceTable: React.FC<AveragePerformanceTableProps> = ({ 
   playerAverages,
+  mergedPlayerAverages,
   loading 
 }) => {
   const [isRankMode, setIsRankMode] = useState(true);
   const [threshold, setThreshold] = useState('3');
+  const [showMergedData, setShowMergedData] = useState(false);
+  
+  // Use merged data or single report data based on the toggle
+  const displayData = showMergedData ? mergedPlayerAverages : playerAverages;
   
   // Calculate which players meet the criteria
   const getHighlightedPlayers = () => {
     if (isRankMode) {
       const rankThreshold = parseInt(threshold) || 0;
-      return playerAverages.filter((player, index) => index < rankThreshold);
+      return displayData.filter((player, index) => index < rankThreshold);
     } else {
       const parseThreshold = parseInt(threshold) || 0;
-      return playerAverages.filter(player => player.totalAverage >= parseThreshold);
+      return displayData.filter(player => player.totalAverage >= parseThreshold);
     }
   };
   
@@ -83,7 +89,7 @@ const AveragePerformanceTable: React.FC<AveragePerformanceTableProps> = ({
     );
   }
 
-  if (playerAverages.length === 0) {
+  if (displayData.length === 0) {
     return (
       <div className="w-full animate-fade-in">
         <div className="glass-morphism p-4 rounded-lg">
@@ -101,31 +107,45 @@ const AveragePerformanceTable: React.FC<AveragePerformanceTableProps> = ({
         <div className="flex flex-col md:flex-row justify-between mb-4 items-start gap-4">
           <h2 className="text-xl font-medium">Average Players Performance</h2>
           
-          <div className="flex items-center space-x-6">
+          <div className="flex flex-col md:flex-row gap-4 md:items-center">
+            {/* Toggle for Merged Data */}
             <div className="flex items-center space-x-2">
               <Switch 
-                id="selection-mode" 
-                checked={!isRankMode}
-                onCheckedChange={(checked) => setIsRankMode(!checked)}
+                id="merged-data" 
+                checked={showMergedData}
+                onCheckedChange={setShowMergedData}
               />
-              <Label htmlFor="selection-mode" className="text-sm">
-                {isRankMode ? 'Top Rank' : 'Min Parse %'}
+              <Label htmlFor="merged-data" className="text-sm">
+                {showMergedData ? 'All Reports' : 'Current Report'}
               </Label>
             </div>
             
-            <div className="flex items-center space-x-2">
-              <Input 
-                id="threshold"
-                type="number" 
-                value={threshold}
-                onChange={(e) => setThreshold(e.target.value)}
-                className="w-20"
-                min={isRankMode ? "1" : "0"}
-                max={isRankMode ? String(playerAverages.length) : "100"}
-              />
-              <Label htmlFor="threshold" className="text-sm">
-                {isRankMode ? 'Rank' : '%'}
-              </Label>
+            <div className="flex items-center space-x-6">
+              <div className="flex items-center space-x-2">
+                <Switch 
+                  id="selection-mode" 
+                  checked={!isRankMode}
+                  onCheckedChange={(checked) => setIsRankMode(!checked)}
+                />
+                <Label htmlFor="selection-mode" className="text-sm">
+                  {isRankMode ? 'Top Rank' : 'Min Parse %'}
+                </Label>
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <Input 
+                  id="threshold"
+                  type="number" 
+                  value={threshold}
+                  onChange={(e) => setThreshold(e.target.value)}
+                  className="w-20"
+                  min={isRankMode ? "1" : "0"}
+                  max={isRankMode ? String(displayData.length) : "100"}
+                />
+                <Label htmlFor="threshold" className="text-sm">
+                  {isRankMode ? 'Rank' : '%'}
+                </Label>
+              </div>
             </div>
           </div>
         </div>
@@ -140,12 +160,13 @@ const AveragePerformanceTable: React.FC<AveragePerformanceTableProps> = ({
                 <th className="pb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground text-right">Log Parse</th>
                 <th className="pb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground text-right">Wipefest Parse</th>
                 <th className="pb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground text-right">Avg Score</th>
+                <th className="pb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground text-right">Attendance</th>
               </tr>
             </thead>
             <tbody>
-              {playerAverages.map((player, index) => (
+              {displayData.map((player, index) => (
                 <tr 
-                  key={player.playerName} 
+                  key={`${player.playerName}-${player.spec}`} 
                   className={cn(
                     "border-b border-white/5 last:border-0",
                     highlightedPlayerIds.has(player.playerName) && "bg-primary/10"
@@ -201,6 +222,15 @@ const AveragePerformanceTable: React.FC<AveragePerformanceTableProps> = ({
                     >
                       {player.totalAverage}%
                     </span>
+                  </td>
+                  <td className="py-3 text-sm font-medium text-right">
+                    {player.attendance ? (
+                      <span className="px-2 py-1 rounded-md">
+                        {player.attendance.present}/{player.attendance.total}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">N/A</span>
+                    )}
                   </td>
                 </tr>
               ))}
