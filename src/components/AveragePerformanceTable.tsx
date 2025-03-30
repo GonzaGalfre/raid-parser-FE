@@ -149,6 +149,78 @@ const AveragePerformanceTable: React.FC<AveragePerformanceTableProps> = ({
             </div>
           </div>
         </div>
+
+        {/* Add Raid Summary Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          {/* Average Raid Parse Card */}
+          <div className="glass-morphism p-4 rounded-lg">
+            <h3 className="text-sm font-medium text-muted-foreground mb-2">Average Raid Parse</h3>
+            <div className="text-2xl font-bold">
+              <span 
+                className={cn(
+                  "px-2 py-1 rounded-md",
+                  displayData.length > 0 ? (
+                    (displayData.reduce((sum, player) => sum + player.averagePercentile, 0) / displayData.length) >= 95 ? "bg-green-500/20 text-green-400" :
+                    (displayData.reduce((sum, player) => sum + player.averagePercentile, 0) / displayData.length) >= 75 ? "bg-blue-500/20 text-blue-400" :
+                    (displayData.reduce((sum, player) => sum + player.averagePercentile, 0) / displayData.length) >= 50 ? "bg-purple-500/20 text-purple-400" :
+                    (displayData.reduce((sum, player) => sum + player.averagePercentile, 0) / displayData.length) >= 25 ? "bg-yellow-500/20 text-yellow-400" :
+                    "bg-gray-500/20 text-gray-400"
+                  ) : "text-muted-foreground"
+                )}
+              >
+                {displayData.length > 0 
+                  ? `${Math.round(displayData.reduce((sum, player) => sum + player.averagePercentile, 0) / displayData.length)}%`
+                  : "N/A"}
+              </span>
+            </div>
+          </div>
+
+          {/* Average Raid Mechanics Card */}
+          <div className="glass-morphism p-4 rounded-lg">
+            <h3 className="text-sm font-medium text-muted-foreground mb-2">Average Raid Mechanics</h3>
+            <div className="text-2xl font-bold">
+              <span 
+                className={cn(
+                  "px-2 py-1 rounded-md",
+                  displayData.length > 0 ? (
+                    (displayData.reduce((sum, player) => sum + player.wipefestScore, 0) / displayData.length) >= 95 ? "bg-green-500/20 text-green-400" :
+                    (displayData.reduce((sum, player) => sum + player.wipefestScore, 0) / displayData.length) >= 75 ? "bg-blue-500/20 text-blue-400" :
+                    (displayData.reduce((sum, player) => sum + player.wipefestScore, 0) / displayData.length) >= 50 ? "bg-purple-500/20 text-purple-400" :
+                    (displayData.reduce((sum, player) => sum + player.wipefestScore, 0) / displayData.length) >= 25 ? "bg-yellow-500/20 text-yellow-400" :
+                    "bg-gray-500/20 text-gray-400"
+                  ) : "text-muted-foreground"
+                )}
+              >
+                {displayData.length > 0 
+                  ? `${Math.round(displayData.reduce((sum, player) => sum + player.wipefestScore, 0) / displayData.length)}%`
+                  : "N/A"}
+              </span>
+            </div>
+          </div>
+
+          {/* Average Raid Total Card */}
+          <div className="glass-morphism p-4 rounded-lg">
+            <h3 className="text-sm font-medium text-muted-foreground mb-2">Average Raid Total</h3>
+            <div className="text-2xl font-bold">
+              <span 
+                className={cn(
+                  "px-2 py-1 rounded-md",
+                  displayData.length > 0 ? (
+                    (displayData.reduce((sum, player) => sum + player.totalAverage, 0) / displayData.length) >= 95 ? "bg-green-500/20 text-green-400" :
+                    (displayData.reduce((sum, player) => sum + player.totalAverage, 0) / displayData.length) >= 75 ? "bg-blue-500/20 text-blue-400" :
+                    (displayData.reduce((sum, player) => sum + player.totalAverage, 0) / displayData.length) >= 50 ? "bg-purple-500/20 text-purple-400" :
+                    (displayData.reduce((sum, player) => sum + player.totalAverage, 0) / displayData.length) >= 25 ? "bg-yellow-500/20 text-yellow-400" :
+                    "bg-gray-500/20 text-gray-400"
+                  ) : "text-muted-foreground"
+                )}
+              >
+                {displayData.length > 0 
+                  ? `${Math.round(displayData.reduce((sum, player) => sum + player.totalAverage, 0) / displayData.length)}%`
+                  : "N/A"}
+              </span>
+            </div>
+          </div>
+        </div>
         
         <div className="overflow-x-auto">
           <table className="w-full">
