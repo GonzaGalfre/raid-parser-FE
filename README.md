@@ -1,69 +1,76 @@
-# Welcome to your Lovable project
+## ¿Qué es esta herramienta?
 
-## Project info
+Es una aplicación que combina datos de dos fuentes principales para evaluar el desempeño de los jugadores en raids:
 
-**URL**: https://lovable.dev/projects/9dd01b5c-7e9f-4e1d-a307-127938c794b9
+- **WarcraftLogs:** Proporciona los porcentajes de parse basados únicamente en el daño realizado y el porcentaje de uptime. No toma en consideración las mecánicas; por ende, evitar realizar mecánicas puede inflar artificialmente este porcentaje.
 
-## How can I edit this code?
+- **Wipefest:** Proporciona una métrica basada exclusivamente en las mecánicas realizadas. El puntaje inicia en 100, y se reduce cada vez que un jugador no realiza una mecánica (por ejemplo, no hacer las bolas de basura en Stix, no descargar las torres en Rik, recibir daño del aceite en Vexie, etc.).
 
-There are several ways of editing your application.
+## ¿Por qué utilizamos ambos sitios?
 
-**Use Lovable**
+Ambas métricas evalúan aspectos complementarios del desempeño. Considerar tanto el daño como la ejecución correcta de mecánicas permite recompensar correctamente a los jugadores que cumplen bien con ambos aspectos en cada encuentro.
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/9dd01b5c-7e9f-4e1d-a307-127938c794b9) and start prompting.
+## ¿Cómo sé que los números son reales?
 
-Changes made via Lovable will be committed automatically to this repo.
+- **WarcraftLogs:** La aplicación extrae datos directamente desde la API oficial. Puedes verificar la información en WarcraftLogs, ya que siempre debería coincidir.
+- **Wipefest:** Debido a que Wipefest no hace públicos los datos completos sin la versión Premium, se desarrolló una extensión de Chrome para extraer estos datos desde un reporte. Aún sin la versión Premium, puedes verificar los puntajes promediando manualmente tus resultados individuales en cada encuentro.
 
-**Use your preferred IDE**
+## ¿Cómo se calculan los datos?
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+### 1. Porcentaje de Parse (WarcraftLogs)
+- Solo se consideran los intentos en los que el jefe fue derrotado (kills).
+- Si no existen kills, se toman los mejores intentos disponibles.
+- Se combina el rendimiento de todas las especializaciones utilizadas por el jugador (no considera cambios de personaje, solo de especialización).
+- Se calcula un promedio general de todos los intentos considerados.
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+### 2. Puntuación de Wipefest
+- Se obtiene directamente desde la plataforma Wipefest mediante un archivo CSV extraído con la extensión desarrollada.
 
-Follow these steps:
+### 3. Puntuación Final (Avg Score)
+- Se calcula como el promedio entre WarcraftLogs y Wipefest:
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+```
+Puntuación Final = (Parse WarcraftLogs + Puntuación Wipefest) ÷ 2
 ```
 
-**Edit a file directly in GitHub**
+## ¿Cómo interpretar los resultados?
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+La tabla muestra:
+- **Rank:** Posición basada en la puntuación final.
+- **Player:** Nombre del jugador.
+- **Spec:** Especialización actual.
+- **Attendance:** Asistencia (intentos presentes/total intentos).
+- **Log Parse:** Porcentaje promedio obtenido de WarcraftLogs.
+- **Wipefest Parse:** Puntaje promedio obtenido de Wipefest.
+- **Avg Score:** Puntaje combinado final.
 
-**Use GitHub Codespaces**
+## ¿Qué sucede si muero justo en el intento que matamos al boss? ¿Pierdo loot?
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+¡No! El sistema considera el promedio general de todos los intentos realizados. Por lo tanto, tener un mal desempeño o morir en un intento específico no arruinará automáticamente tu puntuación final si tu desempeño fue bueno en otros intentos.
 
-## What technologies are used for this project?
+## Características adicionales
 
-This project is built with .
+### Filtros y visualización
+- Puedes alternar entre ver datos de un solo reporte o de múltiples reportes combinados.
+- Puedes filtrar por rangos específicos de porcentaje o posiciones en el ranking.
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+### Asistencia
+- Se calcula automáticamente según la presencia del jugador en cada intento.
+- Permite evaluar la constancia en la participación de cada jugador.
 
-## How can I deploy this project?
+## ¿Cómo acceder a los datos originales?
 
-Simply open [Lovable](https://lovable.dev/projects/9dd01b5c-7e9f-4e1d-a307-127938c794b9) and click on Share -> Publish.
+- **WarcraftLogs:**
+  - Ingresa a [warcraftlogs.com](https://warcraftlogs.com)
+  - Busca tu reporte utilizando el código proporcionado.
+  - En la sección "Rankings" puedes ver los porcentajes por cada intento.
 
-## I want to use a custom domain - is that possible?
+- **Wipefest:**
+  - Ingresa a [wipefest.gg](https://wipefest.gg)
+  - Localiza tu reporte para consultar puntuaciones detalladas y realizar comparativas.
 
-We don't support custom domains (yet). If you want to deploy your project under your own domain then we recommend using Netlify. Visit our docs for more details: [Custom domains](https://docs.lovable.dev/tips-tricks/custom-domain/)
+## Tengo una sugerencia, ¿cómo la comunico?
+
+Esta herramienta fue desarrollada específicamente para atender las necesidades de esta guild. Si tienes sugerencias, son bienvenidas y se evaluarán para implementarse.
+
+Puedes enviarlas directamente mediante un mensaje a @gonzagalfre, o dentro del juego a **Jhinlikesart-Stormrage**.

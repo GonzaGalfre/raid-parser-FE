@@ -277,14 +277,11 @@ export const useWarcraftLogsApi = (initialReportCodes: string[], apiKey: string,
     let playerAttendance: Record<string, number> = {};
     
     if (reportData.attendanceData) {
-      // Use the accurate attendance data fetched specifically for this purpose
       totalPulls = reportData.attendanceData.totalPulls;
       playerAttendance = reportData.attendanceData.playerAttendance;
     } else {
-      // Fallback to the old method if attendance data isn't available
       totalPulls = countTotalPulls([reportCode]);
       
-      // Count player appearances in pulls using the original method
       Object.values(reportData.fightParses).forEach(fight => {
         fight.pulls.forEach(pull => {
           const playersInPull = new Set(pull.parses.map(parse => parse.playerName));
@@ -298,7 +295,8 @@ export const useWarcraftLogsApi = (initialReportCodes: string[], apiKey: string,
     // Collect parses
     Object.values(reportData.fightParses).forEach(fight => {
       fight.parses.forEach(parse => {
-        const playerKey = `${parse.playerName}-${parse.spec}`;
+        // Use only player name as key to merge specs
+        const playerKey = parse.playerName;
         if (!playerParses[playerKey]) {
           playerParses[playerKey] = {
             playerName: parse.playerName,
@@ -371,15 +369,12 @@ export const useWarcraftLogsApi = (initialReportCodes: string[], apiKey: string,
     // Process all reports to gather attendance data
     Object.values(reportsData).forEach(reportData => {
       if (reportData.attendanceData) {
-        // Add this report's total pulls to the overall count
         totalPulls += reportData.attendanceData.totalPulls;
         
-        // Add this report's attendance counts to each player
         Object.entries(reportData.attendanceData.playerAttendance).forEach(([playerName, count]) => {
           playerAttendance[playerName] = (playerAttendance[playerName] || 0) + count;
         });
       } else {
-        // Fallback to original method if no attendance data
         Object.values(reportData.fightParses).forEach(fight => {
           totalPulls += fight.pulls.length;
           
@@ -396,12 +391,13 @@ export const useWarcraftLogsApi = (initialReportCodes: string[], apiKey: string,
       Object.values(reportData.fightParses).forEach(fight => {
         // Collect parses
         fight.parses.forEach(parse => {
-          const playerKey = `${parse.playerName}-${parse.spec}`;
+          // Use only player name as key to merge specs
+          const playerKey = parse.playerName;
           if (!playerParses[playerKey]) {
             playerParses[playerKey] = {
               playerName: parse.playerName,
               class: parse.class,
-              spec: parse.spec,
+              spec: parse.spec, // Will use the most recent spec
               parses: []
             };
           }
@@ -916,7 +912,7 @@ export const useWarcraftLogsApi = (initialReportCodes: string[], apiKey: string,
     wipefestScores,
     importWipefestScores,
     calculatePlayerAverages,
-    calculateMergedPlayerAverages, // New merged averages function
+    calculateMergedPlayerAverages,
     setSelectedFight,
     updateReportCodes,
     fetchReports,
