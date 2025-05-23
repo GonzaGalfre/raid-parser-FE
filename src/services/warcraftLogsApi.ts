@@ -1140,6 +1140,84 @@ export const useWarcraftLogsApi = (initialReportCodes: string[], apiKey: string,
     fetchReports();
   }, [fetchReports, forceRefresh]);
 
+  // NEW: Load saved analysis data into app state
+  const loadSavedAnalysis = useCallback(async (analysisId: string) => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Import the analysis service here to avoid circular dependencies
+      const { analysisService } = await import('./analysisService');
+      const savedAnalysis = await analysisService.loadAnalysis(analysisId);
+      
+      if (!savedAnalysis) {
+        throw new Error('Analysis not found');
+      }
+
+      // Convert saved analysis data back to the format expected by the app
+      const loadedReportsData: Record<string, ReportData> = {};
+      
+      // Process each report in the saved analysis
+      savedAnalysis.reportData.forEach((reportData: any, index: number) => {
+        const reportCode = reportData.code || reportData.reportCode || `loaded_${index}`;
+        
+        loadedReportsData[reportCode] = {
+          reportCode,
+          reportTitle: reportData.title || reportData.reportTitle || `Loaded Report ${index + 1}`,
+          startTime: reportData.startTime || reportData.start_time || Date.now(),
+          players: reportData.players || [],
+          fightParses: reportData.fightParses || reportData.fights || {},
+          selectedFight: Object.keys(reportData.fightParses || reportData.fights || {})[0] || '',
+          loading: false,
+          error: null,
+          attendanceData: reportData.attendanceData
+        };
+      });
+
+      // Update state with loaded data
+      setReportsData(loadedReportsData);
+      
+      // Update report codes to match loaded data
+      const loadedCodes = Object.keys(loadedReportsData);
+      setReportCodes(loadedCodes);
+      
+      // Load wipefest scores if available
+      if (savedAnalysis.players && Array.isArray(savedAnalysis.players)) {
+        const loadedWipefestScores: WipefestScore = {};
+        savedAnalysis.players.forEach((player: any) => {
+          if (player.playerName && typeof player.wipefestScore === 'number') {
+            loadedWipefestScores[player.playerName] = player.wipefestScore;
+          }
+        });
+        setWipefestScores(loadedWipefestScores);
+      }
+
+      console.log('✅ Analysis loaded successfully:', {
+        analysisId,
+        name: savedAnalysis.name,
+        reportCount: Object.keys(loadedReportsData).length,
+        playerCount: savedAnalysis.metadata.playerCount
+      });
+
+      return {
+        success: true,
+        analysisName: savedAnalysis.name,
+        reportCount: Object.keys(loadedReportsData).length,
+        playerCount: savedAnalysis.metadata.playerCount
+      };
+
+    } catch (error) {
+      console.error('Error loading saved analysis:', error);
+      setError(error instanceof Error ? error.message : 'Failed to load analysis');
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to load analysis'
+      };
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   return {
     loading,
     error,
@@ -1153,6 +1231,7 @@ export const useWarcraftLogsApi = (initialReportCodes: string[], apiKey: string,
     setSelectedFight,
     updateReportCodes,
     fetchReports,
+    loadSavedAnalysis,
     getClassColor,
     formatTime,
     getPercentileBadgeVariant
