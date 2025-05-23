@@ -48,6 +48,7 @@ export interface AttendanceData {
 export interface ReportData {
   reportCode: string;
   reportTitle: string;
+  startTime: number;
   players: Player[];
   fightParses: Record<string, FightParse>;
   selectedFight: string;
@@ -841,6 +842,7 @@ export const useWarcraftLogsApi = (initialReportCodes: string[], apiKey: string,
       return {
         reportCode,
         reportTitle,
+        startTime: reportData.startTime,
         players: playersList,
         fightParses: fightPlayerParses,
         selectedFight: firstFight,
@@ -854,6 +856,7 @@ export const useWarcraftLogsApi = (initialReportCodes: string[], apiKey: string,
       return {
         reportCode,
         reportTitle: 'Error Loading Report',
+        startTime: 0,
         players: [],
         fightParses: {},
         selectedFight: '',
@@ -900,6 +903,238 @@ export const useWarcraftLogsApi = (initialReportCodes: string[], apiKey: string,
     setReportCodes(newCodes.filter(Boolean));
   };
 
+  // Calculate comparison between two reports
+  const calculateReportComparison = (baselineReportId: string, compareReportId: string) => {
+    const baselineData = reportsData[baselineReportId];
+    const compareData = reportsData[compareReportId];
+    
+    if (!baselineData || !compareData) {
+      return null;
+    }
+
+    const baselineAverages = calculatePlayerAverages(baselineReportId);
+    const compareAverages = calculatePlayerAverages(compareReportId);
+    
+    // Create lookup maps for easy access
+    const baselineMap = new Map(baselineAverages.map(p => [p.playerName, p]));
+    const compareMap = new Map(compareAverages.map(p => [p.playerName, p]));
+    
+    // Get all unique player names from both reports
+    const allPlayers = new Set([...baselineMap.keys(), ...compareMap.keys()]);
+    
+    const playerComparisons = Array.from(allPlayers).map(playerName => {
+      const baseline = baselineMap.get(playerName);
+      const compare = compareMap.get(playerName);
+      
+      let status: 'improved' | 'decreased' | 'stable' | 'new' | 'missing';
+      let changes = {
+        averagePercentileChange: 0,
+        wipefestScoreChange: 0,
+        totalAverageChange: 0
+      };
+      
+      if (!baseline && compare) {
+        status = 'new';
+      } else if (baseline && !compare) {
+        status = 'missing';
+      } else if (baseline && compare) {
+        changes = {
+          averagePercentileChange: compare.averagePercentile - baseline.averagePercentile,
+          wipefestScoreChange: compare.wipefestScore - baseline.wipefestScore,
+          totalAverageChange: compare.totalAverage - baseline.totalAverage
+        };
+        
+        const totalChange = Math.abs(changes.totalAverageChange);
+        if (totalChange <= 2) { // Consider changes <= 2% as stable
+          status = 'stable';
+        } else if (changes.totalAverageChange > 0) {
+          status = 'improved';
+        } else {
+          status = 'decreased';
+        }
+      } else {
+        status = 'stable'; // Shouldn't happen, but just in case
+      }
+      
+      return {
+        playerName,
+        class: (compare || baseline)?.class || 'Unknown',
+        spec: (compare || baseline)?.spec || null,
+        previousReport: baseline ? {
+          averagePercentile: baseline.averagePercentile,
+          wipefestScore: baseline.wipefestScore,
+          totalAverage: baseline.totalAverage
+        } : null,
+        currentReport: compare ? {
+          averagePercentile: compare.averagePercentile,
+          wipefestScore: compare.wipefestScore,
+          totalAverage: compare.totalAverage
+        } : null,
+        changes,
+        status
+      };
+    });
+
+    return {
+      baselineReportId,
+      compareReportId,
+      baselineTitle: baselineData.reportTitle,
+      compareTitle: compareData.reportTitle,
+      playerComparisons
+    };
+  };
+
+  // Calculate timeline analysis across all reports
+  const calculateTimelineAnalysis = () => {
+    const reportIds = Object.keys(reportsData);
+    if (reportIds.length < 2) return null;
+
+    // Sort reports by startTime (chronological order)
+    const sortedReports = reportIds
+      .map(id => ({ id, data: reportsData[id] }))
+      .filter(report => report.data.startTime > 0) // Filter out error reports
+      .sort((a, b) => a.data.startTime - b.data.startTime);
+
+    if (sortedReports.length < 2) return null;
+
+    // Create report snapshots
+    const reportSnapshots = sortedReports.map(({ id, data }) => {
+      const playerAverages = calculatePlayerAverages(id);
+      
+      // Calculate raid averages
+      const raidAverages = {
+        averagePercentile: Math.round(
+          playerAverages.reduce((sum, p) => sum + p.averagePercentile, 0) / playerAverages.length
+        ),
+        wipefestScore: Math.round(
+          playerAverages.reduce((sum, p) => sum + p.wipefestScore, 0) / playerAverages.length
+        ),
+        totalAverage: Math.round(
+          playerAverages.reduce((sum, p) => sum + p.totalAverage, 0) / playerAverages.length
+        ),
+        playerCount: playerAverages.length
+      };
+
+      // Create player averages lookup
+      const playerAveragesLookup = playerAverages.reduce((acc, player) => {
+        acc[player.playerName] = {
+          averagePercentile: player.averagePercentile,
+          wipefestScore: player.wipefestScore,
+          totalAverage: player.totalAverage,
+          class: player.class,
+          spec: player.spec
+        };
+        return acc;
+      }, {} as Record<string, any>);
+
+      return {
+        reportId: id,
+        reportTitle: data.reportTitle,
+        startTime: data.startTime,
+        formattedDate: formatDate(data.startTime),
+        raidAverages,
+        playerAverages: playerAveragesLookup
+      };
+    });
+
+    // Get all unique players across all reports
+    const allPlayers = new Set<string>();
+    reportSnapshots.forEach(snapshot => {
+      Object.keys(snapshot.playerAverages).forEach(playerName => {
+        allPlayers.add(playerName);
+      });
+    });
+
+    // Calculate player progressions
+    const playerProgressions = Array.from(allPlayers).map(playerName => {
+      const dataPoints = reportSnapshots
+        .filter(snapshot => snapshot.playerAverages[playerName])
+        .map(snapshot => ({
+          reportId: snapshot.reportId,
+          reportTitle: snapshot.reportTitle,
+          date: snapshot.formattedDate,
+          averagePercentile: snapshot.playerAverages[playerName].averagePercentile,
+          wipefestScore: snapshot.playerAverages[playerName].wipefestScore,
+          totalAverage: snapshot.playerAverages[playerName].totalAverage
+        }));
+
+      if (dataPoints.length === 0) return null;
+
+      const firstAverage = dataPoints[0].totalAverage;
+      const lastAverage = dataPoints[dataPoints.length - 1].totalAverage;
+      const totalChange = lastAverage - firstAverage;
+
+      // Determine trend
+      let overallTrend: 'improving' | 'declining' | 'stable' | 'inconsistent';
+      if (Math.abs(totalChange) <= 3) {
+        overallTrend = 'stable';
+      } else if (totalChange > 0) {
+        // Check if it's consistently improving
+        let improvementCount = 0;
+        for (let i = 1; i < dataPoints.length; i++) {
+          if (dataPoints[i].totalAverage >= dataPoints[i - 1].totalAverage) {
+            improvementCount++;
+          }
+        }
+        overallTrend = improvementCount >= dataPoints.length * 0.7 ? 'improving' : 'inconsistent';
+      } else {
+        // Check if it's consistently declining
+        let declineCount = 0;
+        for (let i = 1; i < dataPoints.length; i++) {
+          if (dataPoints[i].totalAverage <= dataPoints[i - 1].totalAverage) {
+            declineCount++;
+          }
+        }
+        overallTrend = declineCount >= dataPoints.length * 0.7 ? 'declining' : 'inconsistent';
+      }
+
+      const firstDataPoint = dataPoints[0];
+      return {
+        playerName,
+        class: firstDataPoint ? (reportSnapshots.find(s => s.playerAverages[playerName])?.playerAverages[playerName]?.class || 'Unknown') : 'Unknown',
+        spec: firstDataPoint ? (reportSnapshots.find(s => s.playerAverages[playerName])?.playerAverages[playerName]?.spec || null) : null,
+        dataPoints,
+        overallTrend,
+        totalChange,
+        firstReportAverage: firstAverage,
+        lastReportAverage: lastAverage
+      };
+    }).filter(Boolean) as any[];
+
+    // Calculate raid trend
+    const firstRaidAverage = reportSnapshots[0].raidAverages.totalAverage;
+    const lastRaidAverage = reportSnapshots[reportSnapshots.length - 1].raidAverages.totalAverage;
+    const raidOverallChange = lastRaidAverage - firstRaidAverage;
+    
+    let raidTrend: 'improving' | 'declining' | 'stable';
+    if (Math.abs(raidOverallChange) <= 2) {
+      raidTrend = 'stable';
+    } else {
+      raidTrend = raidOverallChange > 0 ? 'improving' : 'declining';
+    }
+
+    // Calculate summary statistics
+    const summary = {
+      totalReports: reportSnapshots.length,
+      dateRange: {
+        start: reportSnapshots[0].formattedDate,
+        end: reportSnapshots[reportSnapshots.length - 1].formattedDate
+      },
+      playersImproving: playerProgressions.filter(p => p.overallTrend === 'improving').length,
+      playersStable: playerProgressions.filter(p => p.overallTrend === 'stable').length,
+      playersDeclining: playerProgressions.filter(p => p.overallTrend === 'declining').length,
+      averageRaidImprovement: raidOverallChange
+    };
+
+    return {
+      raidTrend,
+      overallChange: raidOverallChange,
+      reportSnapshots,
+      playerProgressions,
+      summary
+    };
+  };
+
   // Effect to fetch reports when dependencies change
   useEffect(() => {
     fetchReports();
@@ -913,6 +1148,8 @@ export const useWarcraftLogsApi = (initialReportCodes: string[], apiKey: string,
     importWipefestScores,
     calculatePlayerAverages,
     calculateMergedPlayerAverages,
+    calculateReportComparison,
+    calculateTimelineAnalysis,
     setSelectedFight,
     updateReportCodes,
     fetchReports,

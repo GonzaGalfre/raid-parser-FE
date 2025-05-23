@@ -1,12 +1,15 @@
 // src/pages/Index.tsx
 import React, { useState, useCallback, useEffect } from 'react';
-import { useWarcraftLogsApi } from '@/services/warcraftLogsApi';
+import { useWarcraftLogsApi, type FightParse } from '@/services/warcraftLogsApi';
 import PlayerCard from '@/components/PlayerCard';
 import BossfightTabs from '@/components/BossfightTabs';
 import AveragePerformanceTable from '@/components/AveragePerformanceTable';
+import TimelineComparisonView from '@/components/TimelineComparisonView';
 import ConfigPanel from '@/components/ConfigPanel';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { RefreshCw } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { RefreshCw, BarChart3 } from 'lucide-react';
+import { type RaidProgressAnalysis } from '@/types/comparison';
 
 const Index = () => {
   // Configuration state
@@ -15,6 +18,10 @@ const Index = () => {
   const [targetZone, setTargetZone] = useState('Liberation of Undermine');
   const [forceRefresh, setForceRefresh] = useState(0);
   const [selectedReport, setSelectedReport] = useState<string>('');
+  
+  // Timeline analysis state
+  const [timelineAnalysis, setTimelineAnalysis] = useState<RaidProgressAnalysis | null>(null);
+  const [showTimeline, setShowTimeline] = useState(false);
 
   // Try to load config from local storage
   useEffect(() => {
@@ -44,6 +51,7 @@ const Index = () => {
     importWipefestScores,
     calculatePlayerAverages,
     calculateMergedPlayerAverages,
+    calculateTimelineAnalysis,
     setSelectedFight,
     updateReportCodes,
     fetchReports,
@@ -52,6 +60,18 @@ const Index = () => {
   // Force a refresh of the data
   const handleRefresh = useCallback(() => {
     setForceRefresh(prev => prev + 1);
+  }, []);
+
+  // Handle timeline analysis request
+  const handleShowTimeline = useCallback(() => {
+    const analysis = calculateTimelineAnalysis();
+    setTimelineAnalysis(analysis);
+    setShowTimeline(true);
+  }, [calculateTimelineAnalysis]);
+
+  // Toggle back to normal view
+  const handleBackToNormal = useCallback(() => {
+    setShowTimeline(false);
   }, []);
 
   // When report data changes, set the first report as selected if none is selected
@@ -67,7 +87,7 @@ const Index = () => {
     return Object.entries(reportsData).reduce((acc, [reportId, data]) => {
       acc[reportId] = data.fightParses;
       return acc;
-    }, {} as Record<string, Record<string, any>>);
+    }, {} as Record<string, Record<string, FightParse>>);
   };
 
   // Create a report titles object for BossfightTabs
@@ -89,31 +109,64 @@ const Index = () => {
   const isConfigured = reportCodes.some(code => code.trim() !== '') && apiKey;
   const needsConfiguration = !isConfigured && !loading;
 
+  // Check if timeline analysis is available
+  const hasMultipleReports = Object.keys(reportsData).length >= 2;
+
   return (
     <div className="min-h-screen bg-background text-foreground p-6 md:p-8">
       <div className="container mx-auto max-w-7xl">
         <header className="mb-8 relative">
           <h1 className="text-3xl font-bold text-gradient mb-2">
-            {currentReportData ? 
-              `#${Object.keys(reportsData).indexOf(selectedReport) + 1}: ${currentReportData.reportTitle}` : 
-              'Raid Performance'}
+            {showTimeline && timelineAnalysis ? 
+              `Raid Progression Analysis` :
+              currentReportData ? 
+                `#${Object.keys(reportsData).indexOf(selectedReport) + 1}: ${currentReportData.reportTitle}` : 
+                'Raid Performance'}
           </h1>
           <p className="text-muted-foreground">
-            {isConfigured 
-              ? 'Displaying current raid statistics and player performance' 
-              : 'Configure your Warcraft Logs API settings to view raid data'}
+            {showTimeline ? 
+              `Analyzing performance trends across ${timelineAnalysis?.summary.totalReports || 0} reports` :
+              isConfigured 
+                ? 'Displaying current raid statistics and player performance' 
+                : 'Configure your Warcraft Logs API settings to view raid data'}
           </p>
           
-          {/* Config panel button */}
-          <ConfigPanel
-            reportCodes={reportCodes}
-            updateReportCodes={updateReportCodes}
-            setApiKey={setApiKey}
-            targetZone={targetZone}
-            setTargetZone={setTargetZone}
-            importWipefestScores={importWipefestScores}
-            fetchReports={fetchReports}
-          />
+          {/* Action buttons */}
+          {showTimeline && (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleBackToNormal}
+              className="absolute top-6 right-6"
+            >
+              Back to Reports
+            </Button>
+          )}
+          
+          {!showTimeline && (
+            <>
+              {hasMultipleReports && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={handleShowTimeline}
+                  className="absolute top-6 right-40"
+                >
+                  <BarChart3 className="h-4 w-4 mr-2" />
+                  Timeline Analysis
+                </Button>
+              )}
+              <ConfigPanel
+                reportCodes={reportCodes}
+                updateReportCodes={updateReportCodes}
+                setApiKey={setApiKey}
+                targetZone={targetZone}
+                setTargetZone={setTargetZone}
+                importWipefestScores={importWipefestScores}
+                fetchReports={fetchReports}
+              />
+            </>
+          )}
         </header>
         
         {error && (
@@ -149,7 +202,16 @@ const Index = () => {
           </div>
         )}
         
-        {isConfigured && !loading && Object.keys(reportsData).length > 0 && (
+        {/* Show timeline analysis view */}
+        {showTimeline && (
+          <TimelineComparisonView 
+            analysis={timelineAnalysis}
+            loading={loading}
+          />
+        )}
+        
+        {/* Show normal report view */}
+        {!showTimeline && isConfigured && !loading && Object.keys(reportsData).length > 0 && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
             {/* Player cards column */}
             <div className="lg:col-span-3 space-y-6">
