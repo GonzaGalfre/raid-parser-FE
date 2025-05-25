@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Database, TrendingUp, Users, Calendar, Activity, GitCompare } from 'lucide-react';
+import { Plus, Database, TrendingUp, Users, Calendar, Activity, GitCompare, Trophy, Star, BarChart3 } from 'lucide-react';
 import { analysisService } from '../services/analysisService';
 import { AnalysisMetadata } from '../types/storage';
 
@@ -11,9 +11,21 @@ interface HubPageProps {
   onLoadAnalysis?: (analysisId: string) => void;
 }
 
+interface TopPlayer {
+  playerName: string;
+  class: string;
+  spec: string | null;
+  averagePerformance: number;
+  totalParses: number;
+  bestParse: number;
+  analysisName: string;
+}
+
 const HubPage: React.FC<HubPageProps> = ({ onNavigate, onLoadAnalysis }) => {
   const [recentAnalyses, setRecentAnalyses] = useState<AnalysisMetadata[]>([]);
   const [stats, setStats] = useState<any>(null);
+  const [topPlayers, setTopPlayers] = useState<TopPlayer[]>([]);
+  const [averageRaidPerformance, setAverageRaidPerformance] = useState<number>(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -27,6 +39,12 @@ const HubPage: React.FC<HubPageProps> = ({ onNavigate, onLoadAnalysis }) => {
         // Show only the 3 most recent analyses
         setRecentAnalyses(analyses.slice(0, 3));
         setStats(storageStats);
+
+        // Calculate top performers across all analyses
+        await calculateTopPlayers(analyses);
+
+        // Calculate average raid performance across all analyses
+        await calculateAverageRaidPerformance(analyses);
       } catch (error) {
         console.error('Error loading hub data:', error);
       } finally {
@@ -36,6 +54,96 @@ const HubPage: React.FC<HubPageProps> = ({ onNavigate, onLoadAnalysis }) => {
 
     loadHubData();
   }, []);
+
+  const calculateTopPlayers = async (analyses: AnalysisMetadata[]) => {
+    try {
+      if (analyses.length === 0) {
+        setTopPlayers([]);
+        return;
+      }
+
+      // Load all analyses to get player data
+      const allAnalyses = await Promise.all(
+        analyses.map(analysis => analysisService.loadAnalysis(analysis.id))
+      );
+
+      // Aggregate player performance across all analyses
+      const playerMap = new Map<string, {
+        playerName: string;
+        class: string;
+        spec: string | null;
+        totalPerformance: number;
+        parseCount: number;
+        bestParse: number;
+        bestAnalysisName: string;
+      }>();
+
+      allAnalyses.forEach((analysis, index) => {
+        if (analysis && analysis.players) {
+          analysis.players.forEach((player: any) => {
+            const key = `${player.playerName}-${player.class}`;
+            const existing = playerMap.get(key);
+            
+            if (existing) {
+              existing.totalPerformance += player.totalAverage;
+              existing.parseCount += 1;
+              if (player.totalAverage > existing.bestParse) {
+                existing.bestParse = player.totalAverage;
+                existing.bestAnalysisName = analysis.name;
+              }
+            } else {
+              playerMap.set(key, {
+                playerName: player.playerName,
+                class: player.class,
+                spec: player.spec,
+                totalPerformance: player.totalAverage,
+                parseCount: 1,
+                bestParse: player.totalAverage,
+                bestAnalysisName: analysis.name
+              });
+            }
+          });
+        }
+      });
+
+      // Convert to sorted array of top performers
+      const topPerformers = Array.from(playerMap.values())
+        .map(player => ({
+          playerName: player.playerName,
+          class: player.class,
+          spec: player.spec,
+          averagePerformance: Math.round(player.totalPerformance / player.parseCount),
+          totalParses: player.parseCount,
+          bestParse: player.bestParse,
+          analysisName: player.bestAnalysisName
+        }))
+        .sort((a, b) => b.averagePerformance - a.averagePerformance)
+        .slice(0, 5); // Top 5 players
+
+      setTopPlayers(topPerformers);
+    } catch (error) {
+      console.error('Error calculating top players:', error);
+      setTopPlayers([]);
+    }
+  };
+
+  const calculateAverageRaidPerformance = async (analyses: AnalysisMetadata[]) => {
+    try {
+      if (analyses.length === 0) {
+        setAverageRaidPerformance(0);
+        return;
+      }
+
+      // Simply use the averagePerformance from metadata (which is already calculated)
+      const totalPerformance = analyses.reduce((sum, analysis) => sum + analysis.averagePerformance, 0);
+      const avgRaidPerformance = Math.round(totalPerformance / analyses.length);
+      
+      setAverageRaidPerformance(avgRaidPerformance);
+    } catch (error) {
+      console.error('Error calculating average raid performance:', error);
+      setAverageRaidPerformance(0);
+    }
+  };
 
   const handleLoadAnalysis = async (id: string) => {
     if (onLoadAnalysis) {
@@ -50,6 +158,25 @@ const HubPage: React.FC<HubPageProps> = ({ onNavigate, onLoadAnalysis }) => {
         console.error('Error loading analysis:', error);
       }
     }
+  };
+
+  const getClassColor = (className: string) => {
+    const classColors: Record<string, string> = {
+      'Death Knight': 'text-red-400',
+      'Demon Hunter': 'text-purple-400',
+      'Druid': 'text-orange-400',
+      'Evoker': 'text-green-400',
+      'Hunter': 'text-green-400',
+      'Mage': 'text-cyan-400',
+      'Monk': 'text-green-400',
+      'Paladin': 'text-pink-400',
+      'Priest': 'text-white',
+      'Rogue': 'text-yellow-400',
+      'Shaman': 'text-blue-400',
+      'Warlock': 'text-purple-400',
+      'Warrior': 'text-yellow-600'
+    };
+    return classColors[className] || 'text-gray-400';
   };
 
   if (loading) {
@@ -93,11 +220,11 @@ const HubPage: React.FC<HubPageProps> = ({ onNavigate, onLoadAnalysis }) => {
           <CardContent className="p-6">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-green-100 dark:bg-green-900 rounded-lg">
-                <TrendingUp className="h-6 w-6 text-green-600 dark:text-green-400" />
+                <BarChart3 className="h-6 w-6 text-green-600 dark:text-green-400" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{stats?.totalSizeMB?.toFixed(1) || '0.0'} MB</p>
-                <p className="text-sm text-muted-foreground">Storage Used</p>
+                <p className="text-2xl font-bold">{averageRaidPerformance}%</p>
+                <p className="text-sm text-muted-foreground">Average Raid Performance</p>
               </div>
             </div>
           </CardContent>
@@ -170,7 +297,7 @@ const HubPage: React.FC<HubPageProps> = ({ onNavigate, onLoadAnalysis }) => {
           </CardHeader>
           <CardContent>
             <p className="text-muted-foreground mb-4">
-              Compare two saved analyses to see performance changes and progression between raids.
+              Compare multiple analyses to see performance changes and progression between raids.
             </p>
             <Button 
               onClick={() => onNavigate('compare')} 
@@ -184,6 +311,54 @@ const HubPage: React.FC<HubPageProps> = ({ onNavigate, onLoadAnalysis }) => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Top Performers */}
+      {topPlayers.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Trophy className="h-5 w-5 text-yellow-500" />
+              Top Performers (All Analyses)
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Best average performance across all stored raid analyses
+            </p>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {topPlayers.map((player, index) => (
+                <div 
+                  key={`${player.playerName}-${player.class}`}
+                  className="flex items-center justify-between p-3 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary font-bold text-sm">
+                      {index === 0 ? <Trophy className="h-4 w-4" /> : index + 1}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className={`font-medium ${getClassColor(player.class)}`}>
+                          {player.playerName}
+                        </span>
+                        <Badge variant="outline" className="text-xs">
+                          {player.spec || 'Unknown'} {player.class}
+                        </Badge>
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        {player.totalParses} parse{player.totalParses !== 1 ? 's' : ''} • Best: {player.bestParse}%
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-lg font-bold">{player.averagePerformance}%</div>
+                    <div className="text-xs text-muted-foreground">Average</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Recent Analyses */}
       {recentAnalyses.length > 0 && (
@@ -208,7 +383,7 @@ const HubPage: React.FC<HubPageProps> = ({ onNavigate, onLoadAnalysis }) => {
                     <div className="text-sm text-muted-foreground">
                       {analysis.reportCount} reports • {analysis.playerCount} players • 
                       Avg: {analysis.averagePerformance.toFixed(1)} • 
-                      {new Date(analysis.createdAt).toLocaleDateString()}
+                      {new Date(analysis.dateRange.earliest).toLocaleDateString()}
                     </div>
                   </div>
                   <Button 

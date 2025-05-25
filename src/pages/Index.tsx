@@ -11,6 +11,8 @@ import VerticalNavbar, { NavPage } from '@/components/VerticalNavbar';
 import HubPage from '@/components/HubPage';
 import SavedReportsPage from '@/components/SavedReportsPage';
 import CompareAnalysesPage from '@/components/CompareAnalysesPage';
+import BossesPage from '@/components/BossesPage';
+import RosterPage from '@/components/RosterPage';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { RefreshCw, BarChart3 } from 'lucide-react';
@@ -333,10 +335,14 @@ const Index = () => {
         return <HubPage onNavigate={handleHubNavigate} onLoadAnalysis={handleLoadAnalysis} />;
       case 'add-report':
         return renderAddReportPage();
+      case 'roster':
+        return <RosterPage />;
       case 'saved-reports':
         return <SavedReportsPage onLoadAnalysis={handleLoadAnalysis} />;
       case 'compare':
         return <CompareAnalysesPage />;
+      case 'bosses':
+        return <BossesPage />;
       default:
         return <HubPage onNavigate={handleHubNavigate} onLoadAnalysis={handleLoadAnalysis} />;
     }

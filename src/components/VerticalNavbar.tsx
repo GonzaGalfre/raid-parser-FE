@@ -1,9 +1,9 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { Home, Plus, Database, GitCompare } from 'lucide-react';
+import { Home, Plus, Database, GitCompare, Crown, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-export type NavPage = 'hub' | 'add-report' | 'saved-reports' | 'compare';
+export type NavPage = 'hub' | 'add-report' | 'saved-reports' | 'compare' | 'bosses' | 'roster';
 
 interface VerticalNavbarProps {
   currentPage: NavPage;
@@ -25,6 +25,12 @@ const VerticalNavbar: React.FC<VerticalNavbarProps> = ({ currentPage, onPageChan
       description: 'Import new analysis'
     },
     {
+      id: 'roster' as const,
+      label: 'Roster',
+      icon: Users,
+      description: 'Guild characters'
+    },
+    {
       id: 'saved-reports' as const,
       label: 'Saved Reports',
       icon: Database,
@@ -35,6 +41,12 @@ const VerticalNavbar: React.FC<VerticalNavbarProps> = ({ currentPage, onPageChan
       label: 'Compare',
       icon: GitCompare,
       description: 'Compare analyses'
+    },
+    {
+      id: 'bosses' as const,
+      label: 'Bosses',
+      icon: Crown,
+      description: 'Boss statistics'
     }
   ];
 
@@ -71,13 +83,6 @@ const VerticalNavbar: React.FC<VerticalNavbarProps> = ({ currentPage, onPageChan
           );
         })}
       </nav>
-
-      {/* Footer */}
-      <div className="absolute bottom-4 left-4 right-4">
-        <div className="text-xs text-muted-foreground text-center">
-          Built with WarcraftLogs API v2
-        </div>
-      </div>
     </div>
   );
 };
