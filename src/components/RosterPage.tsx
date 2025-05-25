@@ -3,10 +3,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Users, Search, Filter, Activity, RefreshCw } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Users, Search, Filter, Activity, RefreshCw, Shield, Sword, Heart } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { analysisService } from '../services/analysisService';
 import { AnalysisMetadata } from '../types/storage';
+
+type PlayerRole = 'tank' | 'dps' | 'healer';
 
 interface RosterCharacter {
   playerName: string;
@@ -22,15 +25,16 @@ interface RosterCharacter {
   totalParses: number;
   lastSeen: string;
   analysisNames: string[];
+  pullsAttended: number;
+  totalPulls: number;
+  pullAttendanceRate: number;
+  role: PlayerRole;
 }
 
-interface RosterPageProps {
-  reportsData?: Record<string, any>; // Keep for compatibility but won't use
-}
-
-const RosterPage: React.FC<RosterPageProps> = () => {
+const RosterPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedClass, setSelectedClass] = useState<string>('all');
+  const [selectedRole, setSelectedRole] = useState<string>('all');
   const [loading, setLoading] = useState(true);
   const [rosterCharacters, setRosterCharacters] = useState<RosterCharacter[]>([]);
 
@@ -67,6 +71,68 @@ const RosterPage: React.FC<RosterPageProps> = () => {
       .join(' ');
   };
 
+  // Determine role based on class and spec
+  const determineRole = (playerClass: string, spec: string | null): PlayerRole => {
+    const className = playerClass.toLowerCase();
+    const specName = spec?.toLowerCase() || '';
+
+    // Tank specs
+    if (
+      (className.includes('death') && specName.includes('blood')) ||
+      (className.includes('demon') && specName.includes('vengeance')) ||
+      (className.includes('druid') && specName.includes('guardian')) ||
+      (className.includes('monk') && specName.includes('brewmaster')) ||
+      (className.includes('paladin') && specName.includes('protection')) ||
+      (className.includes('warrior') && specName.includes('protection'))
+    ) {
+      return 'tank';
+    }
+
+    // Healer specs
+    if (
+      (className.includes('druid') && specName.includes('restoration')) ||
+      (className.includes('evoker') && specName.includes('preservation')) ||
+      (className.includes('monk') && specName.includes('mistweaver')) ||
+      (className.includes('paladin') && specName.includes('holy')) ||
+      (className.includes('priest') && (specName.includes('holy') || specName.includes('discipline'))) ||
+      (className.includes('shaman') && specName.includes('restoration'))
+    ) {
+      return 'healer';
+    }
+
+    // Default to DPS for all other cases
+    return 'dps';
+  };
+
+  // Get role icon
+  const getRoleIcon = (role: PlayerRole) => {
+    switch (role) {
+      case 'tank': return <Shield className="h-4 w-4" />;
+      case 'healer': return <Heart className="h-4 w-4" />;
+      case 'dps': return <Sword className="h-4 w-4" />;
+    }
+  };
+
+  // Get role color
+  const getRoleColor = (role: PlayerRole) => {
+    switch (role) {
+      case 'tank': return '#3b82f6'; // Blue
+      case 'healer': return '#22c55e'; // Green
+      case 'dps': return '#ef4444'; // Red
+    }
+  };
+
+  // Update character role
+  const updateCharacterRole = (playerName: string, newRole: PlayerRole) => {
+    setRosterCharacters(prev => 
+      prev.map(char => 
+        char.playerName === playerName 
+          ? { ...char, role: newRole }
+          : char
+      )
+    );
+  };
+
   // Load roster data from saved analyses
   useEffect(() => {
     const loadRosterData = async () => {
@@ -100,24 +166,53 @@ const RosterPage: React.FC<RosterPageProps> = () => {
           analysesParticipated: Set<string>;
           analysisNames: Set<string>;
           lastSeen: Date;
+          pullsAttended: number;
+          totalPulls: number;
         }>();
+
+        let globalTotalPulls = 0;
 
         allAnalyses.forEach((analysis, index) => {
           if (analysis && analysis.players) {
             const analysisDate = new Date(analysis.createdAt);
+            
+            // Calculate total pulls for this analysis
+            let analysisTotalPulls = 0;
+            if (analysis.reportData) {
+              analysis.reportData.forEach((reportData: any) => {
+                // Use attendanceData if available, otherwise count from fightParses
+                if (reportData.attendanceData && reportData.attendanceData.totalPulls) {
+                  analysisTotalPulls += reportData.attendanceData.totalPulls;
+                } else if (reportData.fightParses) {
+                  Object.values(reportData.fightParses).forEach((fightParse: any) => {
+                    if (fightParse.pulls) {
+                      analysisTotalPulls += fightParse.pulls.length;
+                    }
+                  });
+                }
+              });
+            }
+            
+            globalTotalPulls += analysisTotalPulls;
             
             analysis.players.forEach((player: any) => {
               // Use player name as the key (since server info might not be available in saved analyses)
               const characterKey = player.playerName;
               const existing = characterMap.get(characterKey);
               
+              // Get pull-level attendance for this player in this analysis
+              const playerPullsAttended = player.attendance?.present || 0;
+              
               if (existing) {
-                existing.totalPerformance += player.totalAverage || player.averagePercentile || 0;
-                existing.parseCount += player.totalParses || 1;
+                existing.totalPerformance += player.totalAverage || 0;
+                existing.parseCount += 1; // Count analyses, not individual parses
                 existing.analysesParticipated.add(analysis.id);
                 existing.analysisNames.add(analysis.name);
-                if ((player.totalAverage || player.averagePercentile || 0) > existing.bestPerformance) {
-                  existing.bestPerformance = player.totalAverage || player.averagePercentile || 0;
+                existing.pullsAttended += playerPullsAttended;
+                existing.totalPulls += analysisTotalPulls;
+                
+                if ((player.totalAverage || 0) > existing.bestPerformance) {
+                  existing.bestPerformance = player.totalAverage || 0;
                 }
                 if (analysisDate > existing.lastSeen) {
                   existing.lastSeen = analysisDate;
@@ -131,12 +226,14 @@ const RosterPage: React.FC<RosterPageProps> = () => {
                   spec: player.spec,
                   server: player.server || 'Unknown',
                   region: player.region || 'Unknown',
-                  totalPerformance: player.totalAverage || player.averagePercentile || 0,
-                  parseCount: player.totalParses || 1,
-                  bestPerformance: player.totalAverage || player.averagePercentile || 0,
+                  totalPerformance: player.totalAverage || 0,
+                  parseCount: 1, // Count analyses, not individual parses
+                  bestPerformance: player.totalAverage || 0,
                   analysesParticipated: new Set([analysis.id]),
                   analysisNames: new Set([analysis.name]),
-                  lastSeen: analysisDate
+                  lastSeen: analysisDate,
+                  pullsAttended: playerPullsAttended,
+                  totalPulls: analysisTotalPulls
                 });
               }
             });
@@ -157,13 +254,17 @@ const RosterPage: React.FC<RosterPageProps> = () => {
           bestPerformance: character.bestPerformance,
           totalParses: character.parseCount,
           lastSeen: character.lastSeen.toLocaleDateString(),
-          analysisNames: Array.from(character.analysisNames)
+          analysisNames: Array.from(character.analysisNames),
+          pullsAttended: character.pullsAttended,
+          totalPulls: character.totalPulls,
+          pullAttendanceRate: character.totalPulls > 0 ? Math.round((character.pullsAttended / character.totalPulls) * 100) : 0,
+          role: determineRole(character.class, character.spec)
         }));
 
-        // Sort by participation rate (highest first), then by average performance
+        // Sort by pull attendance rate (highest first), then by average performance
         const sortedCharacters = characters.sort((a, b) => {
-          if (b.participationRate !== a.participationRate) {
-            return b.participationRate - a.participationRate;
+          if (b.pullAttendanceRate !== a.pullAttendanceRate) {
+            return b.pullAttendanceRate - a.pullAttendanceRate;
           }
           return b.averagePerformance - a.averagePerformance;
         });
@@ -188,18 +289,34 @@ const RosterPage: React.FC<RosterPageProps> = () => {
     return Array.from(classes).sort();
   }, [rosterCharacters]);
 
-  // Filter characters based on search and class filter
+  // Get unique roles for filter
+  const uniqueRoles = useMemo(() => {
+    const roles = new Set(rosterCharacters.map(char => char.role));
+    return Array.from(roles).sort();
+  }, [rosterCharacters]);
+
+  // Filter characters based on search, class, and role filter
   const filteredCharacters = useMemo(() => {
     return rosterCharacters.filter(character => {
       const matchesSearch = character.playerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           (character.server && character.server.toLowerCase().includes(searchTerm.toLowerCase())) ||
-                           (character.spec && character.spec.toLowerCase().includes(searchTerm.toLowerCase()));
+                           (character.server && character.server.toLowerCase().includes(searchTerm.toLowerCase()));
       
       const matchesClass = selectedClass === 'all' || character.class === selectedClass;
+      const matchesRole = selectedRole === 'all' || character.role === selectedRole;
       
-      return matchesSearch && matchesClass;
+      return matchesSearch && matchesClass && matchesRole;
     });
-  }, [rosterCharacters, searchTerm, selectedClass]);
+  }, [rosterCharacters, searchTerm, selectedClass, selectedRole]);
+
+  // Group characters by role
+  const charactersByRole = useMemo(() => {
+    const grouped = {
+      tank: filteredCharacters.filter(char => char.role === 'tank'),
+      healer: filteredCharacters.filter(char => char.role === 'healer'),
+      dps: filteredCharacters.filter(char => char.role === 'dps')
+    };
+    return grouped;
+  }, [filteredCharacters]);
 
   if (loading) {
     return (
@@ -265,7 +382,7 @@ const RosterPage: React.FC<RosterPageProps> = () => {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Search */}
             <div className="space-y-2">
               <Label htmlFor="search">Search Characters</Label>
@@ -273,7 +390,7 @@ const RosterPage: React.FC<RosterPageProps> = () => {
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="search"
-                  placeholder="Search by name, server, or spec..."
+                  placeholder="Search by name or server..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
@@ -298,124 +415,189 @@ const RosterPage: React.FC<RosterPageProps> = () => {
                 ))}
               </select>
             </div>
+
+            {/* Role Filter */}
+            <div className="space-y-2">
+              <Label htmlFor="role-filter">Filter by Role</Label>
+              <select
+                id="role-filter"
+                value={selectedRole}
+                onChange={(e) => setSelectedRole(e.target.value)}
+                className="w-full px-3 py-2 border border-input bg-background rounded-md text-sm"
+              >
+                <option value="all">All Roles</option>
+                {uniqueRoles.map(role => (
+                  <option key={role} value={role}>
+                    {role.charAt(0).toUpperCase() + role.slice(1)}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Character Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        {filteredCharacters.map(character => {
-          const classColor = getClassColor(character.class);
-          
-          return (
-            <Card 
-              key={`${character.playerName}-${character.class}`}
-              className="relative overflow-hidden transition-all hover:shadow-lg"
-              style={{ borderLeft: `4px solid ${classColor}` }}
-            >
-              {/* Color accent background */}
+      {/* Character Groups by Role */}
+      {(['tank', 'healer', 'dps'] as PlayerRole[]).map(role => {
+        const roleCharacters = charactersByRole[role];
+        if (roleCharacters.length === 0) return null;
+
+        return (
+          <div key={role} className="space-y-4">
+            <div className="flex items-center gap-3">
               <div 
-                className="absolute inset-0 opacity-5"
-                style={{ backgroundColor: classColor }}
-              />
-              
-              <CardContent className="p-4 relative z-10">
-                <div className="space-y-3">
-                  {/* Character Name and Server */}
-                  <div>
-                    <h3 
-                      className="font-semibold text-lg"
-                      style={{ color: classColor }}
-                    >
-                      {character.playerName}
-                    </h3>
-                    {character.server && character.server !== 'Unknown' && (
-                      <p className="text-sm text-muted-foreground">
-                        {character.server}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Class and Spec */}
-                  <div className="flex flex-wrap gap-2">
-                    <Badge 
-                      variant="outline"
-                      style={{ 
-                        borderColor: classColor,
-                        color: classColor,
-                        backgroundColor: `${classColor}10`
-                      }}
-                    >
-                      {formatClassName(character.class)}
-                    </Badge>
-                    {character.spec && (
-                      <Badge variant="secondary">
-                        {character.spec}
-                      </Badge>
-                    )}
-                  </div>
-
-                  {/* Performance Stats */}
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Avg Performance:</span>
-                      <span 
-                        className="font-medium"
-                        style={{ 
-                          color: character.averagePerformance >= 75 ? '#22c55e' : 
-                                 character.averagePerformance >= 50 ? '#3b82f6' : 
-                                 character.averagePerformance >= 25 ? '#f59e0b' : '#ef4444'
-                        }}
-                      >
-                        {character.averagePerformance}%
-                      </span>
-                    </div>
-                    
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Best Parse:</span>
-                      <span className="font-medium">{character.bestPerformance}%</span>
-                    </div>
-
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Participation:</span>
-                      <span className="font-medium">
-                        {character.analysesParticipated}/{character.totalAnalyses} ({character.participationRate}%)
-                      </span>
-                    </div>
-                    
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Last Seen:</span>
-                      <span>{character.lastSeen}</span>
-                    </div>
-
-                    {/* Participation Bar */}
-                    <div className="w-full bg-muted rounded-full h-2">
-                      <div 
-                        className="h-2 rounded-full transition-all"
-                        style={{ 
-                          width: `${character.participationRate}%`,
-                          backgroundColor: classColor
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Analysis Names (truncated) */}
-                  {character.analysisNames.length > 0 && (
-                    <div className="text-xs text-muted-foreground">
-                      <span className="font-medium">Analyses: </span>
-                      {character.analysisNames.length > 2 
-                        ? `${character.analysisNames.slice(0, 2).join(', ')} +${character.analysisNames.length - 2} more`
-                        : character.analysisNames.join(', ')
-                      }
-                    </div>
-                  )}
+                className="p-2 rounded-lg"
+                style={{ backgroundColor: `${getRoleColor(role)}20` }}
+              >
+                <div style={{ color: getRoleColor(role) }}>
+                  {getRoleIcon(role)}
                 </div>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold capitalize">{role}s</h2>
+                <p className="text-sm text-muted-foreground">
+                  {roleCharacters.length} character{roleCharacters.length !== 1 ? 's' : ''}
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {roleCharacters.map(character => {
+                const classColor = getClassColor(character.class);
+                
+                return (
+                  <Card 
+                    key={`${character.playerName}-${character.class}`}
+                    className="relative overflow-hidden transition-all hover:shadow-lg"
+                    style={{ borderLeft: `4px solid ${classColor}` }}
+                  >
+                    {/* Color accent background */}
+                    <div 
+                      className="absolute inset-0 opacity-5"
+                      style={{ backgroundColor: classColor }}
+                    />
+                    
+                    <CardContent className="p-4 relative z-10">
+                      <div className="space-y-3">
+                        {/* Character Name and Server */}
+                        <div>
+                          <h3 
+                            className="font-semibold text-lg"
+                            style={{ color: classColor }}
+                          >
+                            {character.playerName}
+                          </h3>
+                          {character.server && character.server !== 'Unknown' && (
+                            <p className="text-sm text-muted-foreground">
+                              {character.server}
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Class and Role */}
+                        <div className="flex flex-wrap gap-2">
+                          <Badge 
+                            variant="outline"
+                            style={{ 
+                              borderColor: classColor,
+                              color: classColor,
+                              backgroundColor: `${classColor}10`
+                            }}
+                          >
+                            {formatClassName(character.class)}
+                          </Badge>
+                          <Badge 
+                            variant="outline"
+                            style={{ 
+                              borderColor: getRoleColor(character.role),
+                              color: getRoleColor(character.role),
+                              backgroundColor: `${getRoleColor(character.role)}10`
+                            }}
+                          >
+                            <span className="mr-1">{getRoleIcon(character.role)}</span>
+                            {character.role.charAt(0).toUpperCase() + character.role.slice(1)}
+                          </Badge>
+                        </div>
+
+                        {/* Role Assignment Buttons */}
+                        <div className="space-y-2">
+                          <div className="text-xs text-muted-foreground">Change Role:</div>
+                          <div className="flex gap-1">
+                            {(['tank', 'healer', 'dps'] as PlayerRole[]).map(newRole => (
+                              <Button
+                                key={newRole}
+                                size="sm"
+                                variant={character.role === newRole ? "default" : "outline"}
+                                onClick={() => updateCharacterRole(character.playerName, newRole)}
+                                className="flex-1 h-8 text-xs"
+                                style={{
+                                  backgroundColor: character.role === newRole ? getRoleColor(newRole) : 'transparent',
+                                  borderColor: getRoleColor(newRole),
+                                  color: character.role === newRole ? 'white' : getRoleColor(newRole)
+                                }}
+                              >
+                                {getRoleIcon(newRole)}
+                              </Button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Performance Stats */}
+                        <div className="space-y-3">
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm font-medium text-muted-foreground">Avg Performance:</span>
+                            <span 
+                              className="text-lg font-bold"
+                              style={{ 
+                                color: character.averagePerformance >= 75 ? '#22c55e' : 
+                                       character.averagePerformance >= 50 ? '#3b82f6' : 
+                                       character.averagePerformance >= 25 ? '#f59e0b' : '#ef4444'
+                              }}
+                            >
+                              {character.averagePerformance}%
+                            </span>
+                          </div>
+
+                          {/* Pull Attendance Bar */}
+                          <div className="space-y-2">
+                            <div className="flex justify-between items-center">
+                              <span className="text-sm font-medium text-muted-foreground">Attendance Rate:</span>
+                              <span className="text-lg font-bold">{character.pullAttendanceRate}%</span>
+                            </div>
+                            <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                              <span>{character.pullsAttended} of {character.totalPulls} pulls</span>
+                            </div>
+                            <div className="w-full bg-muted rounded-full h-3">
+                              <div 
+                                className="h-3 rounded-full transition-all"
+                                style={{ 
+                                  width: `${character.pullAttendanceRate}%`,
+                                  backgroundColor: classColor
+                                }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Analysis Names (truncated) */}
+                        {character.analysisNames.length > 0 && (
+                          <div className="text-xs text-muted-foreground">
+                            <span className="font-medium">Analyses: </span>
+                            {character.analysisNames.length > 2 
+                              ? `${character.analysisNames.slice(0, 2).join(', ')} +${character.analysisNames.length - 2} more`
+                              : character.analysisNames.join(', ')
+                            }
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
 
       {/* No Results */}
       {filteredCharacters.length === 0 && (
@@ -434,7 +616,7 @@ const RosterPage: React.FC<RosterPageProps> = () => {
       {filteredCharacters.length > 0 && (
         <Card>
           <CardContent className="p-4">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-center">
               <div>
                 <div className="text-2xl font-bold">{filteredCharacters.length}</div>
                 <div className="text-sm text-muted-foreground">Characters</div>
@@ -451,9 +633,15 @@ const RosterPage: React.FC<RosterPageProps> = () => {
               </div>
               <div>
                 <div className="text-2xl font-bold">
-                  {Math.round(filteredCharacters.reduce((sum, char) => sum + char.participationRate, 0) / filteredCharacters.length)}%
+                  {Math.round(filteredCharacters.reduce((sum, char) => sum + char.pullAttendanceRate, 0) / filteredCharacters.length)}%
                 </div>
-                <div className="text-sm text-muted-foreground">Avg Participation</div>
+                <div className="text-sm text-muted-foreground">Avg Pull Attendance</div>
+              </div>
+              <div>
+                <div className="text-2xl font-bold">
+                  {filteredCharacters.reduce((sum, char) => sum + char.totalPulls, 0)}
+                </div>
+                <div className="text-sm text-muted-foreground">Total Pulls</div>
               </div>
             </div>
           </CardContent>
