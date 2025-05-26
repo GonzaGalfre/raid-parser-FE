@@ -112,7 +112,7 @@ const HubPage: React.FC<HubPageProps> = ({ onNavigate, onLoadAnalysis }) => {
           playerName: player.playerName,
           class: player.class,
           spec: player.spec,
-          averagePerformance: Math.round(player.totalPerformance / player.parseCount),
+          averagePerformance: player.parseCount > 0 ? Math.round(player.totalPerformance / player.parseCount) : 0,
           totalParses: player.parseCount,
           bestParse: player.bestParse,
           analysisName: player.bestAnalysisName
@@ -135,8 +135,14 @@ const HubPage: React.FC<HubPageProps> = ({ onNavigate, onLoadAnalysis }) => {
       }
 
       // Simply use the averagePerformance from metadata (which is already calculated)
-      const totalPerformance = analyses.reduce((sum, analysis) => sum + analysis.averagePerformance, 0);
-      const avgRaidPerformance = Math.round(totalPerformance / analyses.length);
+      const validAnalyses = analyses.filter(analysis => !isNaN(analysis.averagePerformance));
+      if (validAnalyses.length === 0) {
+        setAverageRaidPerformance(0);
+        return;
+      }
+      
+      const totalPerformance = validAnalyses.reduce((sum, analysis) => sum + analysis.averagePerformance, 0);
+      const avgRaidPerformance = Math.round(totalPerformance / validAnalyses.length);
       
       setAverageRaidPerformance(avgRaidPerformance);
     } catch (error) {
@@ -382,7 +388,7 @@ const HubPage: React.FC<HubPageProps> = ({ onNavigate, onLoadAnalysis }) => {
                     </div>
                     <div className="text-sm text-muted-foreground">
                       {analysis.reportCount} reports • {analysis.playerCount} players • 
-                      Avg: {analysis.averagePerformance.toFixed(1)} • 
+                      Avg: {isNaN(analysis.averagePerformance) ? 'N/A' : analysis.averagePerformance.toFixed(1)} • 
                       {new Date(analysis.dateRange.earliest).toLocaleDateString()}
                     </div>
                   </div>

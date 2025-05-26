@@ -287,7 +287,7 @@ const SavedReportsPage: React.FC<SavedReportsPageProps> = ({ onLoadAnalysis }) =
                       </div>
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      Average Performance: {analysis.averagePerformance.toFixed(1)} • 
+                      Average Performance: {isNaN(analysis.averagePerformance) ? 'N/A' : analysis.averagePerformance.toFixed(1)} • 
                       Created {new Date(analysis.createdAt).toLocaleString()}
                     </p>
                   </div>

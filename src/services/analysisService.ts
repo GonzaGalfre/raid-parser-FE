@@ -62,11 +62,13 @@ export class AnalysisService {
     if (players.length > 0) {
       const totalPerformance = players.reduce((sum, player) => {
         const performance = player.averagePercentile || player.totalAverage || 0;
-        if (performance > maxPerformance) {
-          maxPerformance = performance;
+        // Ensure performance is a valid number
+        const validPerformance = isNaN(performance) ? 0 : performance;
+        if (validPerformance > maxPerformance) {
+          maxPerformance = validPerformance;
           topPerformer = player.name || player.playerName;
         }
-        return sum + performance;
+        return sum + validPerformance;
       }, 0);
       
       averagePerformance = totalPerformance / players.length;
@@ -74,17 +76,26 @@ export class AnalysisService {
 
     // Use timeline analysis data if available
     if (timelineAnalysis) {
-      averagePerformance = timelineAnalysis.reportSnapshots.reduce((sum, snapshot) => 
-        sum + snapshot.raidAverages.totalAverage, 0
-      ) / timelineAnalysis.reportSnapshots.length;
+      const validSnapshots = timelineAnalysis.reportSnapshots.filter(snapshot => 
+        !isNaN(snapshot.raidAverages.totalAverage)
+      );
+      
+      if (validSnapshots.length > 0) {
+        averagePerformance = validSnapshots.reduce((sum, snapshot) => 
+          sum + snapshot.raidAverages.totalAverage, 0
+        ) / validSnapshots.length;
+      }
       
       // Find best performing player across all reports
       const playerTotals = new Map<string, number>();
       timelineAnalysis.playerProgressions.forEach(progression => {
-        const avgPerformance = progression.dataPoints.reduce((sum, point) => 
-          sum + point.totalAverage, 0
-        ) / progression.dataPoints.length;
-        playerTotals.set(progression.playerName, avgPerformance);
+        const validDataPoints = progression.dataPoints.filter(point => !isNaN(point.totalAverage));
+        if (validDataPoints.length > 0) {
+          const avgPerformance = validDataPoints.reduce((sum, point) => 
+            sum + point.totalAverage, 0
+          ) / validDataPoints.length;
+          playerTotals.set(progression.playerName, avgPerformance);
+        }
       });
       
       if (playerTotals.size > 0) {
@@ -101,7 +112,7 @@ export class AnalysisService {
       playerCount: players.length,
       dateRange: { earliest, latest },
       raidInfo: {
-        averagePerformance: Math.round(averagePerformance * 100) / 100,
+        averagePerformance: isNaN(averagePerformance) ? 0 : Math.round(averagePerformance * 100) / 100,
         topPerformer,
         attendanceRate: this.calculateAttendanceRate(reportData, players)
       }

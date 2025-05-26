@@ -250,7 +250,7 @@ const RosterPage: React.FC = () => {
           analysesParticipated: character.analysesParticipated.size,
           totalAnalyses: analyses.length,
           participationRate: Math.round((character.analysesParticipated.size / analyses.length) * 100),
-          averagePerformance: Math.round(character.totalPerformance / character.parseCount),
+          averagePerformance: character.parseCount > 0 ? Math.round(character.totalPerformance / character.parseCount) : 0,
           bestPerformance: character.bestPerformance,
           totalParses: character.parseCount,
           lastSeen: character.lastSeen.toLocaleDateString(),
@@ -554,7 +554,7 @@ const RosterPage: React.FC = () => {
                                        character.averagePerformance >= 25 ? '#f59e0b' : '#ef4444'
                               }}
                             >
-                              {character.averagePerformance}%
+                              {isNaN(character.averagePerformance) ? 'N/A' : `${character.averagePerformance}%`}
                             </span>
                           </div>
 
@@ -627,7 +627,12 @@ const RosterPage: React.FC = () => {
               </div>
               <div>
                 <div className="text-2xl font-bold">
-                  {Math.round(filteredCharacters.reduce((sum, char) => sum + char.averagePerformance, 0) / filteredCharacters.length)}%
+                  {filteredCharacters.length > 0 ? 
+                    (() => {
+                      const avg = Math.round(filteredCharacters.reduce((sum, char) => sum + char.averagePerformance, 0) / filteredCharacters.length);
+                      return isNaN(avg) ? 'N/A' : `${avg}%`;
+                    })() : 'N/A'
+                  }
                 </div>
                 <div className="text-sm text-muted-foreground">Avg Performance</div>
               </div>
