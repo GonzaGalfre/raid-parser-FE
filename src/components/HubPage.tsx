@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Database, TrendingUp, Users, Calendar, Activity, GitCompare, Trophy, Star, BarChart3 } from 'lucide-react';
+import { Plus, Database, TrendingUp, Users, Calendar, Activity, GitCompare, Trophy, Star, BarChart3, Brain } from 'lucide-react';
 import { analysisService } from '../services/analysisService';
 import { AnalysisMetadata } from '../types/storage';
+import AIReportDialog from './AIReportDialog';
+import { useTimelineAnalysis } from '../hooks/useTimelineAnalysis';
 
 interface HubPageProps {
   onNavigate: (page: 'add-report' | 'saved-reports' | 'compare') => void;
@@ -27,6 +29,9 @@ const HubPage: React.FC<HubPageProps> = ({ onNavigate, onLoadAnalysis }) => {
   const [topPlayers, setTopPlayers] = useState<TopPlayer[]>([]);
   const [averageRaidPerformance, setAverageRaidPerformance] = useState<number>(0);
   const [loading, setLoading] = useState(true);
+  
+  // AI Report functionality
+  const { timelineAnalysis, analysisMetadata } = useTimelineAnalysis();
 
   useEffect(() => {
     const loadHubData = async () => {
@@ -257,7 +262,7 @@ const HubPage: React.FC<HubPageProps> = ({ onNavigate, onLoadAnalysis }) => {
       </div>
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -314,6 +319,25 @@ const HubPage: React.FC<HubPageProps> = ({ onNavigate, onLoadAnalysis }) => {
               <GitCompare className="h-4 w-4 mr-2" />
               {stats?.totalAnalyses < 2 ? 'Need 2+ Analyses' : 'Compare Performance'}
             </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Brain className="h-5 w-5" />
+              AI Report Generator
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-muted-foreground mb-4">
+              Generate intelligent insights about raid performance, player improvements, and attendance patterns.
+            </p>
+            <AIReportDialog 
+              timelineAnalysis={timelineAnalysis}
+              analysisMetadata={analysisMetadata}
+              disabled={!timelineAnalysis || timelineAnalysis.summary.totalReports < 2}
+            />
           </CardContent>
         </Card>
       </div>
