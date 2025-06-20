@@ -62,7 +62,7 @@ La tabla muestra:
 
 - **WarcraftLogs:**
   - Ingresa a [warcraftlogs.com](https://warcraftlogs.com)
-  - Busca tu reporte utilizando el código proporcionado.
+  - Busca tu reporte utilizando el enlace completo o el código proporcionado.
   - En la sección "Rankings" puedes ver los porcentajes por cada intento.
 
 - **Wipefest:**

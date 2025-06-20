@@ -248,7 +248,7 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({
         
         <div className="grid gap-4 py-4">
           <div className="flex items-center justify-between mb-2">
-            <Label className="text-sm font-medium">Report Codes</Label>
+            <Label className="text-sm font-medium">Report Links or Codes</Label>
             <Button 
               variant="outline" 
               size="sm" 
@@ -266,7 +266,7 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({
                 value={code}
                 onChange={(e) => updateReportCode(index, e.target.value)}
                 className="flex-1"
-                placeholder="Log report code (e.g. a2bC3d4E)"
+                placeholder="Log report link or code"
               />
               {localReportCodes.length > 1 && (
                 <Button 
