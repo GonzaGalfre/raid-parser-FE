@@ -198,24 +198,30 @@ const CompareAnalysesPage: React.FC<CompareAnalysesPageProps> = () => {
           overallTrend = 'new';
         } else if (Math.abs(totalChange) <= 3) {
           overallTrend = 'stable';
+        } else if (totalChange > 5) {
+          // Significant positive change = improving
+          overallTrend = 'improving';
+        } else if (totalChange < -5) {
+          // Significant negative change = declining
+          overallTrend = 'declining';
         } else if (totalChange > 0) {
-          // Check if it's consistently improving
+          // Small positive change - check for consistency
           let improvementCount = 0;
           for (let i = 1; i < presentDataPoints.length; i++) {
             if (presentDataPoints[i].totalAverage >= presentDataPoints[i - 1].totalAverage) {
               improvementCount++;
             }
           }
-          overallTrend = improvementCount >= presentDataPoints.length * 0.7 ? 'improving' : 'inconsistent';
+          overallTrend = improvementCount >= (presentDataPoints.length - 1) * 0.5 ? 'improving' : 'inconsistent';
         } else {
-          // Check if it's consistently declining
+          // Small negative change - check for consistency
           let declineCount = 0;
           for (let i = 1; i < presentDataPoints.length; i++) {
             if (presentDataPoints[i].totalAverage <= presentDataPoints[i - 1].totalAverage) {
               declineCount++;
             }
           }
-          overallTrend = declineCount >= presentDataPoints.length * 0.7 ? 'declining' : 'inconsistent';
+          overallTrend = declineCount >= (presentDataPoints.length - 1) * 0.5 ? 'declining' : 'inconsistent';
         }
 
         // Get class and spec from most recent appearance
@@ -506,6 +512,7 @@ const CompareAnalysesPage: React.FC<CompareAnalysesPageProps> = () => {
                   </thead>
                   <tbody>
                     {comparisonResult.playerProgressions
+                      .filter((player) => player.overallTrend !== 'new')
                       .sort((a, b) => b.totalChange - a.totalChange)
                       .map((player) => (
                       <tr key={player.playerName} className="border-b border-white/5 last:border-0">
