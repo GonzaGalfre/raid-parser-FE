@@ -76,8 +76,18 @@ export interface PlayerAverage {
   };
 }
 
+const extractReportCode = (input: string): string => {
+  if (!input) return '';
+  const trimmed = input.trim();
+  const urlMatch = trimmed.match(/reports\/([a-zA-Z0-9]+)(?=[/#?]|$)/);
+  if (urlMatch) return urlMatch[1];
+  const codeMatch = trimmed.match(/[a-zA-Z0-9]{8,}/);
+  return codeMatch ? codeMatch[0] : trimmed;
+};
+
 export const useWarcraftLogsApi = (initialReportCodes: string[], apiKey: string, targetZone: string, forceRefresh?: number) => {
-  const [reportCodes, setReportCodes] = useState<string[]>(initialReportCodes.filter(Boolean));
+  const sanitizedInitial = initialReportCodes.map(extractReportCode).filter(Boolean);
+  const [reportCodes, setReportCodes] = useState<string[]>(sanitizedInitial);
   const [reportsData, setReportsData] = useState<Record<string, ReportData>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -897,7 +907,8 @@ export const useWarcraftLogsApi = (initialReportCodes: string[], apiKey: string,
 
   // Update report codes
   const updateReportCodes = (newCodes: string[]) => {
-    setReportCodes(newCodes.filter(Boolean));
+    const sanitized = newCodes.map(extractReportCode).filter(Boolean);
+    setReportCodes(sanitized);
   };
 
   // Effect to fetch reports when dependencies change
