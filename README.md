@@ -54,6 +54,14 @@ La tabla muestra:
 - Puedes alternar entre ver datos de un solo reporte o de múltiples reportes combinados.
 - Puedes filtrar por rangos específicos de porcentaje o posiciones en el ranking.
 
+### Comparación de reportes (NUEVO)
+- **Comparar múltiples reportes:** Importa varios códigos de reporte y compara el desempeño entre ellos.
+- **Seguimiento de mejoras:** Identifica qué jugadores han mejorado o empeorado entre diferentes raids.
+- **Análisis de cambios:** Ve cambios específicos en parse percentiles, puntajes de mecánicas y promedio total.
+- **Estados de jugadores:** Clasifica automáticamente a los jugadores como "Mejorado", "Empeorado", "Estable", "Nuevo" o "Ausente".
+- **Filtros avanzados:** Filtra por cambios significativos o establece umbrales mínimos de cambio.
+- **Estadísticas resumidas:** Ve un resumen visual de cuántos jugadores están en cada categoría.
+
 ### Asistencia
 - Se calcula automáticamente según la presencia del jugador en cada intento.
 - Permite evaluar la constancia en la participación de cada jugador.

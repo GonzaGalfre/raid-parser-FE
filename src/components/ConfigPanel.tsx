@@ -40,9 +40,11 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({
   const [wipefestCsv, setWipefestCsv] = useState('');
   const [localReportCodes, setLocalReportCodes] = useState<string[]>(reportCodes.length ? [...reportCodes] : ['']);
   const [localApiKey, setLocalApiKey] = useState('');
-  const [authMethod, setAuthMethod] = useState<'client' | 'token'>('token');
-  const [clientId, setClientId] = useState('');
-  const [clientSecret, setClientSecret] = useState('');
+  const [authMethod, setAuthMethod] = useState<'client' | 'token'>('client'); // Default to client for testing
+  // TESTING: Hardcoded credentials for easier development/testing
+  // Production apps should never hardcode these values
+  const [clientId, setClientId] = useState('9e85911a-934d-441a-89a5-ee03ba4837d4'); // Hardcoded for testing
+  const [clientSecret, setClientSecret] = useState('OI3LWtS35gw2ntcdXUwhOrfoDOq2lXSn87qER2y0'); // Hardcoded for testing
   const [tokenLoading, setTokenLoading] = useState(false);
   const [tokenError, setTokenError] = useState('');
   
