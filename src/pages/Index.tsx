@@ -109,28 +109,15 @@ const Index = () => {
   const handleLoadAnalysis = useCallback(async (analysisId: string) => {
     try {
       console.log('Loading analysis:', analysisId);
-      
-      // Load the analysis data using the hook function
-      const result = await loadSavedAnalysis(analysisId);
-      
-      if (result.success) {
-        // Navigate to add-report page to show the loaded data
-        setCurrentPage('add-report');
-        
-        // Show success message
-        console.log(`✅ Loaded "${result.analysisName}" with ${result.reportCount} reports and ${result.playerCount} players`);
-        
-        // Optional: Show a toast or notification
-        // You could add a toast notification here if you have a toast system
-      } else {
-        console.error('Failed to load analysis:', result.error);
-        alert(`Failed to load analysis: ${result.error}`);
-      }
+
+      // TODO: Implement loadSavedAnalysis
+      alert('Loading saved analysis is not yet implemented with the new hooks.');
+
     } catch (error) {
       console.error('Error in handleLoadAnalysis:', error);
       alert('An unexpected error occurred while loading the analysis');
     }
-  }, [loadSavedAnalysis, setCurrentPage]);
+  }, []);
 
   // When report data changes, set the first report as selected if none is selected
   useEffect(() => {

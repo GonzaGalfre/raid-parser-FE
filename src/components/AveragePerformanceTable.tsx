@@ -63,19 +63,36 @@ const AveragePerformanceTable: React.FC<AveragePerformanceTableProps> = ({
   // Use merged data or single report data based on the toggle
   const displayData = showMergedData ? mergedPlayerAverages : playerAverages;
   
-  // Calculate which players meet the criteria
-  const getHighlightedPlayers = () => {
+  const highlightedPlayers = useMemo(() => {
     if (isRankMode) {
       const rankThreshold = parseInt(threshold) || 0;
-      return displayData.filter((player, index) => index < rankThreshold);
+      return displayData.filter((_player, index) => index < rankThreshold);
     } else {
       const parseThreshold = parseInt(threshold) || 0;
       return displayData.filter(player => player.totalAverage >= parseThreshold);
     }
-  };
+  }, [displayData, isRankMode, threshold]);
   
-  const highlightedPlayers = getHighlightedPlayers();
-  const highlightedPlayerIds = new Set(highlightedPlayers.map(p => p.playerName));
+  const highlightedPlayerIds = useMemo(() => new Set(highlightedPlayers.map(p => p.playerName)), [highlightedPlayers]);
+
+  const raidAverages = useMemo(() => {
+    if (displayData.length === 0) {
+      return {
+        parse: "N/A",
+        mechanics: "N/A",
+        total: "N/A",
+      };
+    }
+    const avgParse = Math.round(displayData.reduce((sum, player) => sum + player.averagePercentile, 0) / displayData.length);
+    const avgMechanics = Math.round(displayData.reduce((sum, player) => sum + player.wipefestScore, 0) / displayData.length);
+    const avgTotal = Math.round(displayData.reduce((sum, player) => sum + player.totalAverage, 0) / displayData.length);
+
+    return {
+      parse: `${avgParse}%`,
+      mechanics: `${avgMechanics}%`,
+      total: `${avgTotal}%`,
+    };
+  }, [displayData]);
 
   if (loading) {
     return (

@@ -46,28 +46,40 @@ const ComparisonTable: React.FC<ComparisonTableProps> = ({
     );
   }
 
-  // Filter and sort players based on criteria
-  const filteredPlayers = comparisonData.playerComparisons
-    .filter(player => {
-      if (filterStatus !== 'all' && player.status !== filterStatus) return false;
-      
-      if (showOnlySignificant) {
-        const changeThreshold = parseInt(minimumChange) || 0;
-        const totalChange = Math.abs(player.changes.totalAverageChange);
-        return totalChange >= changeThreshold;
-      }
-      
-      return true;
-    })
-    .sort((a, b) => {
-      // Sort by total average change (highest improvements first, then highest decreases)
-      if (a.status === 'new' && b.status !== 'new') return -1;
-      if (b.status === 'new' && a.status !== 'new') return 1;
-      if (a.status === 'missing' && b.status !== 'missing') return 1;
-      if (b.status === 'missing' && a.status !== 'missing') return -1;
-      
-      return b.changes.totalAverageChange - a.changes.totalAverageChange;
-    });
+  const filteredPlayers = useMemo(() => {
+    if (!comparisonData) return [];
+    return comparisonData.playerComparisons
+      .filter(player => {
+        if (filterStatus !== 'all' && player.status !== filterStatus) return false;
+        
+        if (showOnlySignificant) {
+          const changeThreshold = parseInt(minimumChange) || 0;
+          const totalChange = Math.abs(player.changes.totalAverageChange);
+          return totalChange >= changeThreshold;
+        }
+        
+        return true;
+      })
+      .sort((a, b) => {
+        // Sort by total average change (highest improvements first, then highest decreases)
+        if (a.status === 'new' && b.status !== 'new') return -1;
+        if (b.status === 'new' && a.status !== 'new') return 1;
+        if (a.status === 'missing' && b.status !== 'missing') return 1;
+        if (b.status === 'missing' && a.status !== 'missing') return -1;
+        
+        return b.changes.totalAverageChange - a.changes.totalAverageChange;
+      });
+  }, [comparisonData, filterStatus, showOnlySignificant, minimumChange]);
+
+  const stats = useMemo(() => {
+    return {
+      improved: filteredPlayers.filter(p => p.status === 'improved').length,
+      decreased: filteredPlayers.filter(p => p.status === 'decreased').length,
+      stable: filteredPlayers.filter(p => p.status === 'stable').length,
+      new: filteredPlayers.filter(p => p.status === 'new').length,
+      missing: filteredPlayers.filter(p => p.status === 'missing').length,
+    };
+  }, [filteredPlayers]);
 
   const getStatusIcon = (status: string) => {
     switch (status) {
