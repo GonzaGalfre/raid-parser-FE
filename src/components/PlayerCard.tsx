@@ -131,4 +131,4 @@ const PlayerCard: React.FC<PlayerCardProps> = ({
   );
 };
 
-export default PlayerCard;
+export default React.memo(PlayerCard);
